@@ -1,0 +1,20 @@
+{
+  "name": "gpx-animator",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "validate:gpx": "node scripts/validate-gpx-suite.mjs"
+  },
+  "dependencies": {
+    "maplibre-gl": "^5.6.0"
+  },
+  "devDependencies": {
+    "@xmldom/xmldom": "^0.9.10",
+    "linkedom": "^0.18.13",
+    "vite": "^6.3.5"
+  }
+}

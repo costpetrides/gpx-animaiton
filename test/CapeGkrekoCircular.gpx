@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="Peak Explorer">
+  <metadata>
+    <name>Cape Greco Circular Trail</name>
+    <desc>Short placeholder loop at trailhead — replace with full GPX when available.</desc>
+  </metadata>
+  <trk>
+    <name>Cape Greco Circular Trail</name>
+    <trkseg>
+      <trkpt lat="34.96411" lon="34.06791"><ele>40</ele></trkpt>
+      <trkpt lat="34.96445" lon="34.06855"><ele>42</ele></trkpt>
+      <trkpt lat="34.96485" lon="34.06812"><ele>44</ele></trkpt>
+      <trkpt lat="34.96448" lon="34.06748"><ele>42</ele></trkpt>
+      <trkpt lat="34.96411" lon="34.06791"><ele>40</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
