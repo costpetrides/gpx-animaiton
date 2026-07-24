@@ -40,7 +40,7 @@ export function createFrameState({
       speed: formatSpeed(playbackFrame.currentSpeed),
       elevation: formatElevation(playbackFrame.sample?.point?.ele),
       progress: progressPct,
-      duration: route.hasTime ? formatDuration(route.duration) : '—',
+      duration: formatDuration(playbackFrame.duration),
       timeline,
       chartProgress: progress,
     },

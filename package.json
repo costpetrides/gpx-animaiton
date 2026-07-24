@@ -2,11 +2,18 @@
   "name": "gpx-animator",
   "private": true,
   "version": "1.0.0",
+  "description": "GPX Animator Studio — desktop app for animating GPS tracks on a 3D map",
+  "author": "GPX Animator Studio",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
+    "dev:web": "vite",
+    "start": "node scripts/dev-app.mjs",
     "build": "vite build",
     "preview": "vite preview",
+    "pack": "vite build && electron-builder --dir",
+    "dist": "vite build && electron-builder",
     "validate:gpx": "node scripts/validate-gpx-suite.mjs"
   },
   "dependencies": {
@@ -14,7 +21,38 @@
   },
   "devDependencies": {
     "@xmldom/xmldom": "^0.9.10",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
     "linkedom": "^0.18.13",
     "vite": "^6.3.5"
+  },
+  "build": {
+    "appId": "com.gpxanimator.studio",
+    "productName": "GPX Animator Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }
