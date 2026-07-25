@@ -1,12 +1,35 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import electronPath from 'electron';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const APP_NAME = 'GPX Animator Studio';
 const DEV_URL = 'http://127.0.0.1:5173';
 const PORT = 5173;
+
+function patchMacElectronBundleName() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const plistPath = path.resolve(path.dirname(electronPath), '..', 'Info.plist');
+    if (!fs.existsSync(plistPath)) return;
+    let plist = fs.readFileSync(plistPath, 'utf8');
+    const next = plist
+      .replace(
+        /(<key>CFBundleName<\/key>\s*<string>)([^<]*)(<\/string>)/,
+        `$1${APP_NAME}$3`,
+      )
+      .replace(
+        /(<key>CFBundleDisplayName<\/key>\s*<string>)([^<]*)(<\/string>)/,
+        `$1${APP_NAME}$3`,
+      );
+    if (next !== plist) fs.writeFileSync(plistPath, next);
+  } catch {
+    // Non-fatal in dev.
+  }
+}
 
 function waitForPort(port, host = '127.0.0.1', timeoutMs = 60000) {
   const started = Date.now();
@@ -27,6 +50,8 @@ function waitForPort(port, host = '127.0.0.1', timeoutMs = 60000) {
     tryConnect();
   });
 }
+
+patchMacElectronBundleName();
 
 const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js');
 const vite = spawn(process.execPath, [viteBin, '--host', '127.0.0.1', '--port', String(PORT)], {

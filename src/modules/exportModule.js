@@ -1,4 +1,4 @@
-import { createVideoExporter, downloadBlob, normalizeExportQuality } from '../export/videoExporter.js';
+import { createVideoExporter, downloadBlob, normalizeExportQuality, normalizeExportFormat } from '../export/videoExporter.js';
 
 export function createExportModule(ctx) {
   let exporter = null;
@@ -39,7 +39,7 @@ export function createExportModule(ctx) {
         getExporter()
           .exportVideo({
             quality: normalizeExportQuality(config?.quality),
-            format: config?.format || 'webm',
+            format: normalizeExportFormat(config?.format),
           })
           .then(({ blob, filename }) => {
             downloadBlob(blob, filename);

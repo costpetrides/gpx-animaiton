@@ -1,5 +1,6 @@
 {
   "name": "gpx-animator",
+  "productName": "GPX Animator Studio",
   "private": true,
   "version": "1.0.0",
   "description": "GPX Animator Studio — desktop app for animating GPS tracks on a 3D map",
@@ -39,9 +40,10 @@
     ],
     "mac": {
       "category": "public.app-category.graphics-design",
+      "identity": null,
       "target": [
-        "dmg",
-        "zip"
+        "dir",
+        "dmg"
       ]
     },
     "win": {

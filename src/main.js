@@ -2,7 +2,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import { parseGPX, formatDistance } from './gpx.js';
-import { DEFAULT_SPEED_MPS, PLAYBACK_TIME_COMPRESSION } from './playback/engine.js';
+import { DEFAULT_SPEED_MPS } from './playback/engine.js';
 import { MAP_STYLES, getStyleConfig } from './mapStyles.js';
 import { createAnimator } from './animator.js';
 import { createElevationChart } from './elevationChart.js';
@@ -63,12 +63,9 @@ function getRouteDocument() {
   return selectRouteDocument(getProjectState());
 }
 
-/** Playback clock length at 1× (compressed). Project meta still shows real GPX time when present. */
+/** Playback clock length at 1× — even speed from distance only (ignores GPX pace). */
 function getAnimationDuration(routeDoc = getRouteDocument()) {
   if (!routeDoc) return 0;
-  if (routeDoc.stats.hasTime) {
-    return Math.max(routeDoc.stats.duration / PLAYBACK_TIME_COMPRESSION, 1 / PLAYBACK_TIME_COMPRESSION);
-  }
   return routeDoc.stats.totalDistance / DEFAULT_SPEED_MPS;
 }
 

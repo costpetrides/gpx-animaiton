@@ -224,7 +224,7 @@ export function syncExportControls(exportConfig) {
   const quality = document.getElementById('export-quality');
   const format = document.getElementById('export-format');
   if (quality) quality.value = exportConfig.quality || 'standard';
-  if (format) format.value = exportConfig.format || 'webm';
+  if (format) format.value = exportConfig.format || 'mp4';
 }
 
 export function syncOverlayControls(overlays) {

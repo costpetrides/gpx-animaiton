@@ -6,8 +6,18 @@ if (!app) {
   process.exit(1);
 }
 
+const APP_NAME = 'GPX Animator Studio';
 const isDev = !app.isPackaged;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173';
+
+app.setName(APP_NAME);
+if (process.platform === 'darwin') {
+  app.setAboutPanelOptions({
+    applicationName: APP_NAME,
+    applicationVersion: app.getVersion(),
+    copyright: 'GPX Animator Studio',
+  });
+}
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -19,7 +29,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 720,
     show: false,
-    title: 'GPX Animator Studio',
+    title: APP_NAME,
     backgroundColor: '#1c1e22',
     autoHideMenuBar: true,
     webPreferences: {
@@ -32,6 +42,11 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+  });
+
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault();
+    mainWindow?.setTitle(APP_NAME);
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -56,24 +71,24 @@ function buildAppMenu() {
     ...(isMac
       ? [
           {
-            label: app.name,
+            label: APP_NAME,
             submenu: [
-              { role: 'about' },
+              { role: 'about', label: `About ${APP_NAME}` },
               { type: 'separator' },
               { role: 'services' },
               { type: 'separator' },
-              { role: 'hide' },
+              { role: 'hide', label: `Hide ${APP_NAME}` },
               { role: 'hideOthers' },
               { role: 'unhide' },
               { type: 'separator' },
-              { role: 'quit' },
+              { role: 'quit', label: `Quit ${APP_NAME}` },
             ],
           },
         ]
       : []),
     {
       label: 'File',
-      submenu: [isMac ? { role: 'close' } : { role: 'quit' }],
+      submenu: [isMac ? { role: 'close' } : { role: 'quit', label: `Quit ${APP_NAME}` }],
     },
     {
       label: 'Edit',
@@ -103,7 +118,11 @@ function buildAppMenu() {
     },
     {
       label: 'Window',
-      submenu: [{ role: 'minimize' }, { role: 'zoom' }, ...(isMac ? [{ type: 'separator' }, { role: 'front' }] : [])],
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [{ type: 'separator' }, { role: 'front' }] : []),
+      ],
     },
   ];
 
@@ -111,7 +130,6 @@ function buildAppMenu() {
 }
 
 app.whenReady().then(() => {
-  app.setName('GPX Animator Studio');
   buildAppMenu();
   createWindow();
 

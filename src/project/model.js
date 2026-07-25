@@ -99,7 +99,7 @@ export function createEmptyProjectDocument() {
         prepareQuality: 'fast',
       },
       export: {
-        format: 'webm',
+        format: 'mp4',
         quality: 'standard',
         resolution: '1920x1080',
         fps: 30,
