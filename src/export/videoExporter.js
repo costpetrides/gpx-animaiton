@@ -8,38 +8,9 @@ export const EXPORT_QUALITY_PRESETS = {
   high: { label: 'High', width: 1920, height: 1080, fps: 60, bitrate: 16_000_000 },
 };
 
-const MP4_MIME_CANDIDATES = [
-  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-  'video/mp4;codecs=avc1.4D401E',
-  'video/mp4;codecs=avc1.42E01E',
-  'video/mp4',
-];
-
-const WEBM_MIME_CANDIDATES = [
-  'video/webm;codecs=vp9,opus',
-  'video/webm;codecs=vp9',
-  'video/webm;codecs=vp8',
-  'video/webm',
-];
-
 export function normalizeExportQuality(value) {
   if (value === 'draft' || value === 'high') return value;
   return 'standard';
-}
-
-/** Export format defaults to MP4. */
-export function normalizeExportFormat(value) {
-  return value === 'webm' ? 'webm' : 'mp4';
-}
-
-function pickMimeType(format) {
-  const candidates = format === 'webm' ? WEBM_MIME_CANDIDATES : MP4_MIME_CANDIDATES;
-  for (const type of candidates) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) {
-      return type;
-    }
-  }
-  return null;
 }
 
 export function createVideoExporter(deps) {
@@ -53,23 +24,21 @@ export function createVideoExporter(deps) {
 
   async function exportVideo(options = {}) {
     const quality = EXPORT_QUALITY_PRESETS[normalizeExportQuality(options.quality)] || EXPORT_QUALITY_PRESETS.standard;
-    const format = normalizeExportFormat(options.format);
-    const mimeType = pickMimeType(format);
-    if (!mimeType) {
-      throw new Error(
-        format === 'mp4'
-          ? 'MP4 export is not supported in this environment'
-          : 'WebM export is not supported in this environment',
-      );
-    }
-    const extension = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
+    const format = options.format === 'webm' ? 'webm' : 'mp4';
+    const mimeType = format === 'webm'
+      ? 'video/webm;codecs=vp9'
+      : (MediaRecorder.isTypeSupported('video/mp4')
+        ? 'video/mp4'
+        : (MediaRecorder.isTypeSupported('video/webm;codecs=h264')
+          ? 'video/webm;codecs=h264'
+          : 'video/webm;codecs=vp9'));
 
     if (!animator.getRoute()) throw new Error('No route loaded');
     abortController = new AbortController();
     const { signal } = abortController;
 
     animator.pause();
-    onStatus?.('Preparing export…');
+    onStatus?.('Preparing MP4 export…');
     animator.reprepare?.('export');
     await waitUntil(() => animator.isPlaybackArmed(), { timeoutMs: 120000, signal });
 
@@ -94,7 +63,7 @@ export function createVideoExporter(deps) {
       signal.addEventListener('abort', () => reject(new Error('export_aborted')));
     });
 
-    onStatus?.('Recording…');
+    onStatus?.('Rendering frames…');
     recorder.start(100);
 
     const frameInterval = 1000 / quality.fps;
@@ -118,14 +87,12 @@ export function createVideoExporter(deps) {
     }
 
     recorder.stop();
-    onStatus?.('Finalizing…');
+    onStatus?.('Finalizing video…');
     const blob = await finished;
     abortController = null;
-    return {
-      blob,
-      mimeType: mimeType.split(';')[0],
-      filename: `gpx-animation.${extension}`,
-    };
+    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const base = options.filenameBase || 'trail-animation';
+    return { blob, mimeType: mimeType.split(';')[0], filename: `${base}.${ext}` };
   }
 
   return { exportVideo, abort };

@@ -1,4 +1,6 @@
 const { app, BrowserWindow, shell, Menu } = require('electron');
+
+const APP_NAME = 'GPX Cinematic Renderer';
 const path = require('path');
 
 if (!app) {
@@ -6,18 +8,8 @@ if (!app) {
   process.exit(1);
 }
 
-const APP_NAME = 'GPX Animator Studio';
 const isDev = !app.isPackaged;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173';
-
-app.setName(APP_NAME);
-if (process.platform === 'darwin') {
-  app.setAboutPanelOptions({
-    applicationName: APP_NAME,
-    applicationVersion: app.getVersion(),
-    copyright: 'GPX Animator Studio',
-  });
-}
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -30,7 +22,7 @@ function createWindow() {
     minHeight: 720,
     show: false,
     title: APP_NAME,
-    backgroundColor: '#1c1e22',
+    backgroundColor: '#121417',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -42,11 +34,6 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
-  });
-
-  mainWindow.on('page-title-updated', (event) => {
-    event.preventDefault();
-    mainWindow?.setTitle(APP_NAME);
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -71,24 +58,24 @@ function buildAppMenu() {
     ...(isMac
       ? [
           {
-            label: APP_NAME,
+            label: app.name,
             submenu: [
-              { role: 'about', label: `About ${APP_NAME}` },
+              { role: 'about' },
               { type: 'separator' },
               { role: 'services' },
               { type: 'separator' },
-              { role: 'hide', label: `Hide ${APP_NAME}` },
+              { role: 'hide' },
               { role: 'hideOthers' },
               { role: 'unhide' },
               { type: 'separator' },
-              { role: 'quit', label: `Quit ${APP_NAME}` },
+              { role: 'quit' },
             ],
           },
         ]
       : []),
     {
       label: 'File',
-      submenu: [isMac ? { role: 'close' } : { role: 'quit', label: `Quit ${APP_NAME}` }],
+      submenu: [isMac ? { role: 'close' } : { role: 'quit' }],
     },
     {
       label: 'Edit',
@@ -118,11 +105,7 @@ function buildAppMenu() {
     },
     {
       label: 'Window',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        ...(isMac ? [{ type: 'separator' }, { role: 'front' }] : []),
-      ],
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, ...(isMac ? [{ type: 'separator' }, { role: 'front' }] : [])],
     },
   ];
 
@@ -130,6 +113,7 @@ function buildAppMenu() {
 }
 
 app.whenReady().then(() => {
+  app.setName(APP_NAME);
   buildAppMenu();
   createWindow();
 

@@ -99,7 +99,7 @@ window.runGpxQaSuite = async function runGpxQaSuite(files, options = {}) {
       row.steps.reset = { dist: a.getPlaybackState().animDistance, armed: a.isPlaybackArmed() };
       if (row.steps.reset.dist > 50) row.issues.push({ severity: 'medium', step: 'reset', msg: `dist not near 0: ${row.steps.reset.dist}` });
 
-      const styles = ['dark', 'topo', 'satellite'];
+      const styles = ['outdoor', 'positron', 'dark'];
       for (const s of styles) {
         const chip = [...document.querySelectorAll('#style-picker .chip')].find((c) => c.dataset.style === s);
         chip?.click();

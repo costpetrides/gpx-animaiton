@@ -1,4 +1,4 @@
-import { createVideoExporter, downloadBlob, normalizeExportQuality, normalizeExportFormat } from '../export/videoExporter.js';
+import { createVideoExporter, downloadBlob, normalizeExportQuality } from '../export/videoExporter.js';
 
 export function createExportModule(ctx) {
   let exporter = null;
@@ -34,16 +34,23 @@ export function createExportModule(ctx) {
       }
       if (intent === 'export-video') {
         if (exporting) return;
-        const config = ctx.getState().document.project.export;
+        const state = ctx.getState();
+        const config = state.document.project.export;
+        const routeName = state.document.project.route?.name || 'trail-animation';
+        const filenameBase = String(routeName)
+          .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '')
+          .replace(/\s+/g, '-')
+          .slice(0, 80) || 'trail-animation';
         exporting = true;
         getExporter()
           .exportVideo({
             quality: normalizeExportQuality(config?.quality),
-            format: normalizeExportFormat(config?.format),
+            format: config?.format || 'mp4',
+            filenameBase,
           })
           .then(({ blob, filename }) => {
             downloadBlob(blob, filename);
-            ctx.shell?.setStatus('Export complete');
+            ctx.shell?.setStatus('MP4 export complete');
           })
           .catch((err) => {
             if (err.message !== 'export_aborted') {

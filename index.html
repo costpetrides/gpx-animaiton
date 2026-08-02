@@ -3,496 +3,130 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: blob:; worker-src 'self' blob:;" />
-    <title>GPX Animator Studio</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: blob:; worker-src 'self' blob:;"
+    />
+    <title>GPX Cinematic Renderer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="loading-screen">
       <div class="loading-inner">
         <div class="loading-spinner"></div>
-        <p>Loading GPX Animator Studio…</p>
+        <p>Loading renderer…</p>
       </div>
     </div>
 
     <div id="app-shell">
-      <!-- Menu Bar -->
-      <header class="menu-bar" id="menu-bar">
-        <nav class="menu-items">
-          <div class="menu-item" data-menu="file">
-            <button type="button" class="menu-trigger">File</button>
-            <div class="menu-dropdown">
-              <button type="button" data-action="new-project">New Project</button>
-              <label class="menu-file-label" for="gpx-input">Open GPX…</label>
-              <label class="menu-file-label" for="project-file-input">Open Project…</label>
-              <hr />
-              <button type="button" data-action="save-project">Save Project</button>
-              <button type="button" data-action="export-project">Export Project</button>
-              <button type="button" data-action="export-video">Export Video</button>
-            </div>
+      <header class="app-header" id="app-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div class="brand-text">
+            <strong>GPX Cinematic Renderer</strong>
+            <span>Trail film engine</span>
           </div>
-          <div class="menu-item" data-menu="edit">
-            <button type="button" class="menu-trigger">Edit</button>
-            <div class="menu-dropdown">
-              <button type="button" disabled>Undo</button>
-              <button type="button" disabled>Redo</button>
-              <hr />
-              <button type="button" disabled>Preferences</button>
-            </div>
-          </div>
-          <div class="menu-item" data-menu="view">
-            <button type="button" class="menu-trigger">View</button>
-            <div class="menu-dropdown">
-              <button type="button" data-action="fullscreen">Fullscreen</button>
-              <button type="button" data-action="toggle-left">Toggle Left Panel</button>
-              <button type="button" data-action="toggle-right">Toggle Right Panel</button>
-              <button type="button" data-action="toggle-bottom">Toggle Bottom Panel</button>
-              <hr />
-              <button type="button" data-action="reset-layout">Reset Layout</button>
-            </div>
-          </div>
-          <div class="menu-item" data-menu="animation">
-            <button type="button" class="menu-trigger">Animation</button>
-            <div class="menu-dropdown">
-              <button type="button" data-action="focus-camera">Camera Settings</button>
-              <button type="button" data-action="focus-speed">Speed Settings</button>
-              <button type="button" data-action="play">Play / Pause</button>
-              <button type="button" data-action="reset">Reset Animation</button>
-            </div>
-          </div>
-          <div class="menu-item" data-menu="tools">
-            <button type="button" class="menu-trigger">Tools</button>
-            <div class="menu-dropdown">
-              <button type="button" disabled>Measurements</button>
-              <button type="button" data-action="screenshot">Screenshot</button>
-            </div>
-          </div>
-          <div class="menu-item" data-menu="help">
-            <button type="button" class="menu-trigger">Help</button>
-            <div class="menu-dropdown">
-              <button type="button" disabled>Documentation</button>
-              <button type="button" data-action="focus-data">Live Data</button>
-              <hr />
-              <button type="button" data-action="about">About GPX Animator Studio</button>
-            </div>
-          </div>
-        </nav>
-        <div class="menu-bar-title">GPX Animator Studio</div>
+        </div>
+        <div class="header-actions">
+          <label class="btn btn-ghost" for="gpx-input">Open GPX</label>
+          <button type="button" class="btn btn-primary" id="btn-export-video" data-action="export-video" disabled>
+            Export MP4
+          </button>
+        </div>
       </header>
 
-      <!-- Toolbar -->
-      <div class="toolbar" id="toolbar">
-        <label class="tool-btn" for="gpx-input" title="Open GPX">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4z"/></svg>
-          <span>Open GPX</span>
-        </label>
-        <button type="button" class="tool-btn" id="toolbar-save" data-action="save-project" title="Save">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-          <span>Save</span>
-        </button>
-        <div class="toolbar-sep"></div>
-        <button type="button" class="tool-btn" id="toolbar-export-video" data-action="export-video" title="Export Video">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-          <span>Export Video</span>
-        </button>
-        <button type="button" class="tool-btn" id="toolbar-export-image" data-action="export-image" title="Export Image">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-          <span>Export Image</span>
-        </button>
-        <div class="toolbar-sep"></div>
-        <button type="button" class="tool-btn" id="toolbar-settings" title="Settings">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19.14 12.94a7.43 7.43 0 0 0 .05-.94 7.43 7.43 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.28 7.28 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42l-.36 2.54a7.28 7.28 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.6 8.48a.5.5 0 0 0 .12.64l2.03 1.58c-.03.31-.05.63-.05.94s.02.63.05.94L2.72 13.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54A.5.5 0 0 0 10 22h4a.5.5 0 0 0 .5-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
-          <span>Settings</span>
-        </button>
-      </div>
-
-      <!-- Main workspace -->
-      <div class="workspace" id="workspace">
-        <!-- Left sidebar -->
-        <aside class="panel panel-left" id="panel-left">
-          <nav class="module-rail" id="module-rail" aria-label="Studio modules">
-            <button type="button" class="module-btn active" data-module="route" title="Route">〰</button>
-            <button type="button" class="module-btn" data-module="camera" title="Camera">📷</button>
-            <button type="button" class="module-btn" data-module="track" title="Track">━</button>
-            <button type="button" class="module-btn" data-module="terrain" title="Terrain">⛰</button>
-            <button type="button" class="module-btn" data-module="layers" title="Layers">▦</button>
-            <button type="button" class="module-btn" data-module="overlays" title="Overlays">◎</button>
-            <button type="button" class="module-btn" data-module="data" title="Data">📊</button>
-            <button type="button" class="module-btn" data-module="export" title="Export">⬇</button>
-          </nav>
-          <div class="panel-left-body">
-          <div class="panel-header">Project Explorer</div>
-          <div class="panel-body scroll">
-            <div class="module-panel active" data-module-panel="route">
-            <section class="sidebar-section">
-              <h3>Project</h3>
-              <dl class="meta-list" id="project-meta">
-                <dt>Name</dt><dd id="meta-name">—</dd>
-                <dt>File</dt><dd id="meta-file">—</dd>
-                <dt>Length</dt><dd id="meta-length">—</dd>
-                <dt>Duration</dt><dd id="meta-duration">—</dd>
-                <dt>Points</dt><dd id="meta-points">—</dd>
-              </dl>
-            </section>
-            <section class="sidebar-section">
-              <h3>Waypoints</h3>
-              <div class="table-wrap">
-                <table class="data-table" id="waypoints-table">
-                  <thead><tr><th>Name</th><th>Dist</th><th>Ele</th></tr></thead>
-                  <tbody><tr><td colspan="3" class="empty-cell">No waypoints</td></tr></tbody>
-                </table>
+      <div class="app-body">
+        <aside class="side-panel" id="side-panel">
+          <section class="side-section">
+            <h2>Trail</h2>
+            <dl class="trail-meta" id="trail-meta">
+              <div>
+                <dt>Name</dt>
+                <dd id="meta-name">—</dd>
               </div>
-            </section>
-            <section class="sidebar-section" id="photos-section">
-              <h3>Photos</h3>
-              <p class="placeholder-text">No photos attached</p>
-            </section>
-            </div>
-            <div class="module-panel" data-module-panel="camera">
-              <section class="sidebar-section">
-                <h3>Camera</h3>
-                <p class="field-hint">Use the Camera panel on the right to adjust rig properties, capture shots, and add keyframes.</p>
-              </section>
-            </div>
-            <div class="module-panel" data-module-panel="track">
-              <section class="sidebar-section">
-                <h3>Track</h3>
-                <p class="field-hint">Adjust line color and width in the Track properties panel.</p>
-              </section>
-            </div>
-            <div class="module-panel" data-module-panel="terrain">
-              <section class="sidebar-section">
-                <h3>Terrain</h3>
-                <p class="field-hint">Configure DEM terrain and exaggeration in the Terrain panel.</p>
-              </section>
-            </div>
-            <div class="module-panel" data-module-panel="layers">
-            <section class="sidebar-section">
-              <h3>Layers</h3>
-              <ul class="layer-list" id="layer-list">
-                <li><label><input type="checkbox" data-layer="route" checked /> Route</label></li>
-                <li><label><input type="checkbox" data-layer="elevation" checked /> Elevation</label></li>
-                <li><label><input type="checkbox" data-layer="speed" /> Speed</label></li>
-                <li><label><input type="checkbox" data-layer="waypoints" checked /> Waypoints</label></li>
-                <li><label><input type="checkbox" data-layer="photos" /> Photos</label></li>
-                <li><label><input type="checkbox" data-layer="labels" /> Labels</label></li>
-                <li><label><input type="checkbox" data-layer="terrain" checked /> Terrain</label></li>
-              </ul>
-            </section>
-            </div>
-            <div class="module-panel" data-module-panel="overlays">
-              <section class="sidebar-section">
-                <h3>Overlays</h3>
-                <p class="placeholder-text">Title cards and stats overlays (coming soon)</p>
-              </section>
-            </div>
-            <div class="module-panel" data-module-panel="data">
-              <section class="sidebar-section">
-                <h3>Live data</h3>
-                <p class="field-hint">Open the Data properties panel on the right for playback HUD values.</p>
-              </section>
-            </div>
-            <div class="module-panel" data-module-panel="export">
-              <section class="sidebar-section">
-                <h3>Export</h3>
-                <p class="field-hint">Configure format and quality in the Export panel, then export from the toolbar or right panel.</p>
-              </section>
-            </div>
-          </div>
-          </div>
+              <div>
+                <dt>Distance</dt>
+                <dd id="meta-length">—</dd>
+              </div>
+              <div>
+                <dt>Elevation gain</dt>
+                <dd id="meta-gain">—</dd>
+              </div>
+              <div>
+                <dt>Film length</dt>
+                <dd id="meta-duration">—</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="side-section">
+            <h2>Preview</h2>
+            <label class="field-label" for="speed-select">Speed</label>
+            <select id="speed-select">
+              <option value="0.5">0.5×</option>
+              <option value="1">1×</option>
+              <option value="2">2×</option>
+              <option value="3" selected>3×</option>
+              <option value="6">6×</option>
+              <option value="12">12×</option>
+            </select>
+          </section>
+
+          <p class="side-status" id="status-message">Drop a GPX to create a cinematic trail film</p>
         </aside>
 
-        <div class="resize-handle resize-v" data-resize="left" title="Resize"></div>
-
-        <!-- Center viewport -->
         <main class="viewport" id="viewport">
-          <div class="viewport-tabs" id="map-mode-tabs">
-            <button type="button" class="vtab active" id="map-mode-3d" data-map-mode="3d">Map 3D</button>
-            <button type="button" class="vtab" id="map-mode-2d" data-map-mode="2d">Map 2D</button>
-          </div>
           <div class="viewport-canvas" id="viewport-canvas">
             <div id="viewport-map-wrap">
               <div id="map"></div>
-              <div id="stats-overlay" class="stats-overlay hidden" aria-live="polite"></div>
             </div>
-            <div id="viewport-preparing" class="viewport-preparing hidden" aria-live="polite" aria-busy="false">
+            <div
+              id="viewport-preparing"
+              class="viewport-preparing hidden"
+              aria-live="polite"
+              aria-busy="false"
+            >
               <div class="viewport-preparing-card">
                 <div class="loading-spinner"></div>
-                <p class="viewport-preparing-title" id="viewport-preparing-title">Preparing route for playback</p>
-                <p class="viewport-preparing-detail" id="viewport-preparing-detail">Loading map tiles…</p>
+                <p class="viewport-preparing-title" id="viewport-preparing-title">Creating your film</p>
+                <p class="viewport-preparing-detail" id="viewport-preparing-detail">
+                  Building terrain and cinematic camera…
+                </p>
               </div>
-            </div>
-            <div class="compass" id="compass" title="North">
-              <div class="compass-needle" id="compass-needle">N</div>
             </div>
             <div class="viewport-empty" id="viewport-empty">
               <div class="empty-dropzone" id="dropzone">
-                <svg viewBox="0 0 24 24" width="48" height="48"><path fill="currentColor" opacity="0.4" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
-                <p>Drop GPX file here or use <strong>File → Open GPX</strong></p>
-                <label class="btn-secondary" for="gpx-input">Browse GPX file…</label>
+                <p class="empty-title">Drop a GPX</p>
+                <p class="empty-copy">
+                  We’ll build the terrain, frame a cinematic camera, and prepare your trail film.
+                </p>
+                <label class="btn btn-secondary" for="gpx-input">Open GPX</label>
               </div>
             </div>
           </div>
-          <!-- Playback bar -->
+
           <div class="playback-bar">
-            <div class="playback-times">
-              <span id="time-current">00:00</span>
-              <span class="time-sep">/</span>
-              <span id="time-total">00:00</span>
-            </div>
-            <div class="playback-controls">
-              <button type="button" class="pb-btn" id="btn-skip-start" title="Go to start">⏮</button>
-              <button type="button" class="pb-btn" id="btn-step-back" title="Step back" disabled>⏪</button>
-              <button type="button" class="pb-btn pb-play" id="btn-play" title="Play">
-                <span class="icon-play">▶</span>
-                <span class="icon-pause hidden">❚❚</span>
-              </button>
-              <button type="button" class="pb-btn" id="btn-step-fwd" title="Step forward" disabled>⏩</button>
-              <button type="button" class="pb-btn" id="btn-skip-end" title="Go to end" disabled>⏭</button>
-            </div>
-            <input type="range" class="timeline" id="timeline" min="0" max="1000" value="0" />
-            <div class="keyframe-track" id="keyframe-track" aria-label="Camera keyframes">
-              <div class="keyframe-row" id="keyframe-row"></div>
-            </div>
-            <div class="playback-options">
-              <label class="speed-label">Speed
-                <select id="speed-select">
-                  <option value="0.5">0.5×</option>
-                  <option value="1" selected>1×</option>
-                  <option value="1.5">1.5×</option>
-                  <option value="2">2×</option>
-                  <option value="3">3×</option>
-                  <option value="4">4×</option>
-                </select>
-              </label>
-              <label class="check-label"><input type="checkbox" id="loop-check" disabled /> Loop</label>
-              <button type="button" class="pb-btn" id="btn-fullscreen" title="Fullscreen">⛶</button>
-            </div>
+            <button type="button" class="pb-btn pb-play" id="btn-play" title="Play" disabled>
+              <span class="icon-play">▶</span>
+              <span class="icon-pause hidden">❚❚</span>
+            </button>
+            <button type="button" class="pb-btn" id="btn-skip-start" title="Restart" disabled>⏮</button>
+            <span class="mono time-current" id="time-current">00:00</span>
+            <input type="range" class="timeline" id="timeline" min="0" max="1000" value="0" disabled />
+            <span class="mono time-total" id="time-total">00:00</span>
+            <button type="button" class="pb-btn" id="btn-fullscreen" title="Fullscreen">⛶</button>
           </div>
         </main>
-
-        <div class="resize-handle resize-v" data-resize="right" title="Resize"></div>
-
-        <!-- Right sidebar -->
-        <aside class="panel panel-right" id="panel-right">
-          <div class="panel-header">Properties</div>
-          <div class="panel-body scroll prop-body">
-            <div class="module-props active" data-module-props="route">
-              <div class="field"><label>Route name</label><input type="text" id="route-name" readonly value="—" /></div>
-              <div class="field"><label>Description</label><textarea id="route-desc" rows="2" placeholder="Add description…"></textarea></div>
-              <div class="field"><label>Activity</label><select id="route-activity"><option>Cycling</option><option>Hiking</option><option>Running</option></select></div>
-              <div class="field"><label>Route color</label><input type="color" id="route-color" value="#3b82f6" /></div>
-              <div class="field"><label>Map style</label>
-                <div class="chip-row" id="style-picker"></div>
-              </div>
-              <div class="field"><label>Animation speed</label>
-                <input type="range" id="speed-slider" min="0.5" max="4" step="0.5" value="1" />
-                <span class="field-hint" id="speed-label">1×</span>
-              </div>
-              <div class="field"><label>Playback preparation</label>
-                <select id="prepare-quality-select">
-                  <option value="fast">Fast — initial view only</option>
-                  <option value="balanced" selected>Balanced — initial view + corridor</option>
-                  <option value="maximum">Maximum — aggressive prefetch</option>
-                </select>
-                <span class="field-hint" id="prepare-quality-hint">Prepares camera, terrain and tiles before Play is enabled.</span>
-              </div>
-            </div>
-            <div class="module-props" data-module-props="camera">
-              <div class="field"><label>Camera mode</label>
-                <div class="chip-row" id="camera-picker">
-                  <button type="button" class="chip active" data-camera="follow">Follow</button>
-                  <button type="button" class="chip" data-camera="bird">Bird</button>
-                </div>
-              </div>
-              <div class="avo-camera-rig" id="avo-camera-rig">
-                <div class="avo-camera-stage">
-                  <canvas id="avo-camera-diagram" aria-hidden="true"></canvas>
-                </div>
-                <div class="avo-camera-tabs" role="tablist" aria-label="Camera controls">
-                  <button type="button" class="avo-tab" data-avo-mode="altitude" role="tab" title="Altitude">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M8 8l4-4 4 4M6 20h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-                    <span>Altitude</span>
-                  </button>
-                  <button type="button" class="avo-tab active" data-avo-mode="tilt" role="tab" title="Tilt">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18h14M8 14l4-8 4 8M12 6v2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <span>Tilt</span>
-                  </button>
-                  <button type="button" class="avo-tab" data-avo-mode="focus" role="tab" title="Focus Point">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                    <span>Focus Point</span>
-                  </button>
-                </div>
-                <div class="avo-camera-control">
-                  <div class="avo-control-head">
-                    <span id="avo-control-name">Tilt</span>
-                    <span id="avo-control-readout">48°</span>
-                  </div>
-                  <div class="avo-slider-row">
-                    <button type="button" class="avo-step-btn" data-avo-step="-1" aria-label="Decrease">−</button>
-                    <div class="avo-slider-wrap">
-                      <input type="range" id="avo-camera-slider" min="0" max="80" step="1" value="48" />
-                      <div class="avo-slider-ticks" id="avo-slider-ticks"></div>
-                    </div>
-                    <button type="button" class="avo-step-btn" data-avo-step="1" aria-label="Increase">+</button>
-                  </div>
-                  <div class="avo-focus-lateral hidden" id="avo-focus-lateral-row">
-                    <label for="avo-focus-lateral">Lateral offset</label>
-                    <input type="range" id="avo-focus-lateral" min="-120" max="120" step="1" value="0" />
-                    <span id="avo-focus-lateral-val">0 m</span>
-                  </div>
-                </div>
-              </div>
-              <details class="avo-camera-advanced">
-                <summary>Advanced camera</summary>
-                <div class="field"><label>Bearing mode</label>
-                  <select id="rig-bearing-mode">
-                    <option value="north-true">North True</option>
-                    <option value="route">Follow route</option>
-                    <option value="fixed">Fixed bearing</option>
-                  </select>
-                </div>
-                <div class="field"><label>Bearing (°)</label>
-                  <input type="range" id="rig-bearing" min="0" max="360" step="1" value="0" />
-                  <span class="field-hint" id="rig-bearing-val">0</span>
-                </div>
-                <div class="field"><label>Zoom</label>
-                  <input type="range" id="rig-zoom" min="10" max="18" step="0.1" value="15" />
-                  <span class="field-hint" id="rig-zoom-val">15</span>
-                </div>
-                <div class="field"><label>Bearing smoothing</label>
-                  <input type="range" id="rig-smooth-bearing" min="0" max="1" step="0.05" value="0.6" />
-                  <span class="field-hint" id="rig-smooth-bearing-val">0.6</span>
-                </div>
-              </details>
-              <div class="field">
-                <label>Playback camera</label>
-                <div class="chip-row">
-                  <button type="button" class="chip" data-action="capture-shot">Set Playback Camera</button>
-                  <button type="button" class="chip" data-action="reset-shot">Reset Shot</button>
-                </div>
-                <span class="field-hint" id="shot-status">No playback camera saved</span>
-              </div>
-              <div class="field"><label>Keyframes</label>
-                <div class="chip-row">
-                  <button type="button" class="chip" id="btn-add-keyframe">Add at playhead</button>
-                  <button type="button" class="chip" id="btn-clear-keyframes">Clear all</button>
-                </div>
-                <ul class="keyframe-list" id="keyframe-list"><li class="empty-cell">No keyframes</li></ul>
-              </div>
-            </div>
-            <div class="module-props" data-module-props="track">
-              <div class="field"><label>Track color</label><input type="color" id="track-color" value="#3b82f6" /></div>
-              <div class="field"><label>Line width</label>
-                <input type="range" id="track-width" min="2" max="12" step="1" value="5" />
-                <span class="field-hint" id="track-width-val">5</span>
-              </div>
-            </div>
-            <div class="module-props" data-module-props="terrain">
-              <label class="check-row"><input type="checkbox" id="terrain-enabled" checked /> Enable terrain (3D)</label>
-              <div class="field"><label>Exaggeration</label>
-                <input type="range" id="terrain-exaggeration" min="0.5" max="3" step="0.1" value="1.2" />
-                <span class="field-hint" id="terrain-exaggeration-val">1.2</span>
-              </div>
-            </div>
-            <div class="module-props" data-module-props="layers">
-              <p class="field-hint">Toggle layers in the Layers module on the left.</p>
-            </div>
-            <div class="module-props" data-module-props="overlays">
-              <label class="check-row"><input type="checkbox" id="overlay-stats" /> Show stats overlay</label>
-              <div class="field"><label>Title</label><input type="text" id="overlay-title" placeholder="Route title…" /></div>
-            </div>
-            <div class="module-props" data-module-props="export">
-              <div class="field"><label>Format</label>
-                <select id="export-format">
-                  <option value="mp4" selected>MP4</option>
-                  <option value="webm">WebM</option>
-                </select>
-              </div>
-              <div class="field"><label>Export quality</label>
-                <select id="export-quality">
-                  <option value="draft">Draft (720p)</option>
-                  <option value="standard" selected>Standard (1080p)</option>
-                  <option value="high">High (1080p 60fps)</option>
-                </select>
-                <span class="field-hint">Separate from playback prepare quality.</span>
-              </div>
-              <button type="button" class="btn-export" id="btn-export-video">Export Video</button>
-              <p class="field-hint">Records the map canvas during playback. Use Maximum prepare quality for smoothest export.</p>
-            </div>
-            <div class="module-props" data-module-props="data">
-              <dl class="meta-list" id="data-stats">
-                <dt>Distance</dt><dd id="hud-distance">—</dd>
-                <dt>Total</dt><dd id="hud-total">—</dd>
-                <dt>Speed</dt><dd id="hud-speed">—</dd>
-                <dt>Elevation</dt><dd id="hud-elevation">—</dd>
-                <dt>Progress</dt><dd id="hud-progress">0%</dd>
-                <dt>Duration</dt><dd id="hud-duration">—</dd>
-              </dl>
-            </div>
-          </div>
-        </aside>
       </div>
-
-      <div class="resize-handle resize-h" data-resize="bottom" title="Resize"></div>
-
-      <!-- Bottom workspace -->
-      <div class="bottom-panel" id="panel-bottom">
-        <div class="bottom-tabs" id="bottom-tabs">
-          <button type="button" class="btab active" data-btab="elevation">Elevation</button>
-          <button type="button" class="btab" data-btab="speed" disabled>Speed</button>
-          <button type="button" class="btab" data-btab="stats">Statistics</button>
-          <button type="button" class="btab" data-btab="console" disabled>Console</button>
-        </div>
-        <div class="bottom-content">
-          <div class="btab-panel active" data-bpanel="elevation">
-            <canvas id="elevation-chart"></canvas>
-          </div>
-          <div class="btab-panel" data-bpanel="speed">
-            <p class="field-hint panel-pad">Speed chart requires a GPX file with timestamps.</p>
-          </div>
-          <div class="btab-panel" data-bpanel="stats">
-            <div class="stats-grid" id="stats-grid">
-              <div class="stat-card"><span class="stat-label">Avg speed</span><span class="stat-val" id="stat-avg-speed">—</span></div>
-              <div class="stat-card"><span class="stat-label">Max speed</span><span class="stat-val" id="stat-max-speed">—</span></div>
-              <div class="stat-card"><span class="stat-label">Distance</span><span class="stat-val" id="stat-distance">—</span></div>
-              <div class="stat-card"><span class="stat-label">Points</span><span class="stat-val" id="stat-points">—</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Status bar -->
-      <footer class="status-bar" id="status-bar">
-        <span id="status-message">Ready</span>
-        <span class="status-sep">|</span>
-        <span id="status-gpx">No GPX loaded</span>
-        <span class="status-sep">|</span>
-        <span>WGS 84</span>
-        <span class="status-right">
-          <span id="status-zoom">Zoom —</span>
-          <span class="status-sep">|</span>
-          <span id="status-fps">— FPS</span>
-          <span class="status-sep">|</span>
-          <span id="status-coords">— , —</span>
-        </span>
-      </footer>
     </div>
 
-    <input
-      type="file"
-      id="project-file-input"
-      class="gpx-file-input"
-      accept=".json,application/json"
-    />
-    <input
-      type="file"
-      id="gpx-input"
-      class="gpx-file-input"
-      accept=".gpx,application/gpx+xml"
-    />
+    <input type="file" id="gpx-input" class="gpx-file-input" accept=".gpx,application/gpx+xml,text/xml" />
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

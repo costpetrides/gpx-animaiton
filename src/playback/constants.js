@@ -1,14 +1,26 @@
 /**
- * Even cinematic playback speed along route distance.
- * GPX timestamps / recorded pace are never used for animation pacing.
- *
- * Effective travel rate at 1× ≈ REFERENCE_SPEED_MPS × PLAYBACK_TIME_COMPRESSION
- * (so a long ride still finishes in a short video).
+ * Cinematic along-trail ground speed at 1× (meters / second).
+ * Tuned so preview 3× feels brisk (~previous 12×): ~88 m/s ≈ 320 km/h flyover.
+ * A 4.5 km trail ≈ 51 s at 1×, ~17 s at 3×.
+ */
+export const CINEMATIC_GROUND_MPS = 88;
+
+/** Soft floor / ceiling so tiny trails aren't instant and long ones don't drag. */
+export const MIN_ANIMATION_DURATION_SEC = 22;
+export const MAX_ANIMATION_DURATION_SEC = 120;
+
+/**
+ * @deprecated Kept for any remaining timed-route math; cinematic pacing is distance-based.
+ * Legacy 60× compression made short GPS clocks play like a rocket.
  */
 export const PLAYBACK_TIME_COMPRESSION = 60;
 
-/** Reference pace used only to size DEFAULT_SPEED_MPS (~14.4 km/h). */
-export const REFERENCE_SPEED_MPS = 4;
+/**
+ * @deprecated Prefer CINEMATIC_GROUND_MPS. Alias so older imports keep working.
+ */
+export const REFERENCE_SPEED_MPS = CINEMATIC_GROUND_MPS;
 
-/** Constant along-track speed (m/s) at 1× playback. */
-export const DEFAULT_SPEED_MPS = REFERENCE_SPEED_MPS * PLAYBACK_TIME_COMPRESSION;
+/**
+ * Along-trail meters per second at 1× (distance-paced cinematic preview).
+ */
+export const DEFAULT_SPEED_MPS = CINEMATIC_GROUND_MPS;

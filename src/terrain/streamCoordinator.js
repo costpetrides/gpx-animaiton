@@ -56,17 +56,26 @@ export function createTerrainStreamCoordinator(map) {
     };
   }
 
-  function pinRouteCorridor(bounds, paddingFactor = 0.18) {
+  function pinRouteCorridor(bounds, paddingFactor = 1.8) {
     if (!bounds) return;
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
-    const latPad = Math.max((ne.lat - sw.lat) * paddingFactor, 0.003);
-    const lngPad = Math.max((ne.lng - sw.lng) * paddingFactor, 0.003);
+    // Keep this LOOSE. Tight maxBounds clamp pitched cinematic cameras and
+    // shove the actor pin off-screen near trail endpoints (screen-recording bug).
+    const latPad = Math.max((ne.lat - sw.lat) * paddingFactor, 0.05);
+    const lngPad = Math.max((ne.lng - sw.lng) * paddingFactor, 0.05);
     map.setMaxBounds([
       [sw.lng - lngPad, sw.lat - latPad],
       [ne.lng + lngPad, ne.lat + latPad],
     ]);
     corridorPinned = true;
+  }
+
+  /**
+   * Film cameras must pan freely around the subject — drop corridor clamps.
+   */
+  function releaseCameraBounds() {
+    clearRouteCorridor();
   }
 
   function clearRouteCorridor() {
@@ -130,6 +139,7 @@ export function createTerrainStreamCoordinator(map) {
     getStats,
     pinRouteCorridor,
     clearRouteCorridor,
+    releaseCameraBounds,
     waitForViewReady,
   };
 }

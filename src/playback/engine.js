@@ -1,15 +1,30 @@
 import { estimateSpeed } from '../route.js';
-import { DEFAULT_SPEED_MPS } from './constants.js';
+import {
+  CINEMATIC_GROUND_MPS,
+  DEFAULT_SPEED_MPS,
+  MAX_ANIMATION_DURATION_SEC,
+  MIN_ANIMATION_DURATION_SEC,
+  PLAYBACK_TIME_COMPRESSION,
+} from './constants.js';
 
-export { DEFAULT_SPEED_MPS, PLAYBACK_TIME_COMPRESSION } from './constants.js';
+export {
+  CINEMATIC_GROUND_MPS,
+  DEFAULT_SPEED_MPS,
+  PLAYBACK_TIME_COMPRESSION,
+};
 
 /**
- * Animation length at 1× from route length only (even speed).
- * Ignores GPX timestamps / recorded pace.
+ * Animation length at 1× — always distance-paced for cinematic video.
+ * GPS timestamps no longer dictate flythrough length (that made short
+ * recordings scream through the trail in seconds).
  */
 export function getBaseAnimationDuration(route) {
-  if (!route || !(route.totalDistance > 0)) return 1 / DEFAULT_SPEED_MPS;
-  return route.totalDistance / DEFAULT_SPEED_MPS;
+  if (!route?.totalDistance) return MIN_ANIMATION_DURATION_SEC;
+  const byDistance = route.totalDistance / CINEMATIC_GROUND_MPS;
+  return Math.max(
+    MIN_ANIMATION_DURATION_SEC,
+    Math.min(MAX_ANIMATION_DURATION_SEC, byDistance),
+  );
 }
 
 export function getPlaybackDuration(route, speedMul = 1) {
@@ -45,30 +60,28 @@ export function seekPlaybackProgress(route, pct, speedMul = 1) {
     };
   }
 
-  const progress = Math.max(0, Math.min(1, pct));
   return {
-    animTime: clampPlaybackTime(route, progress * getPlaybackDuration(route, speedMul), speedMul),
-    animDistance: clampPlaybackDistance(route, progress * route.totalDistance),
+    animTime: clampPlaybackTime(route, pct * getPlaybackDuration(route, speedMul), speedMul),
+    animDistance: clampPlaybackDistance(route, pct * route.totalDistance),
   };
 }
 
 /**
- * Advance along the route at a constant distance rate.
- * Position is always sampled by distance — never by GPX time.
+ * Advance the subject along the trail by distance (even, cinematic pacing).
  */
 export function samplePlaybackFrame(route, playbackState, dt, speedMul = 1) {
   if (!route) return null;
 
   const mul = Math.max(Number(speedMul) || 1, 0.001);
+  const duration = getPlaybackDuration(route, mul);
   const nextAnimTime = playbackState.animTime + dt;
   const previousDistance = playbackState.animDistance;
-  const duration = getPlaybackDuration(route, mul);
 
-  const animDistance = clampPlaybackDistance(
-    route,
-    nextAnimTime * DEFAULT_SPEED_MPS * mul,
-  );
+  // Pace by fraction of route so duration clamps still land exactly at the end.
+  const progress = duration > 0 ? Math.min(1, nextAnimTime / duration) : 1;
+  const animDistance = clampPlaybackDistance(route, progress * route.totalDistance);
   const sample = route.atDistance(animDistance);
+
   const currentSpeed = estimateSpeed(route, animDistance, previousDistance, dt);
   const done = nextAnimTime >= duration || animDistance >= route.totalDistance;
 

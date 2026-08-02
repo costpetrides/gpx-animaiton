@@ -1,20 +1,29 @@
 import maplibregl from 'maplibre-gl';
 
 export const CAMERA_PRESETS = {
+  cinematic: {
+    label: 'Cinematic',
+    zoom: 14.5,
+    pitch: 58,
+    forwardOffsetM: -28,
+    rightOffsetM: 0,
+    relativeBearing: 0,
+    bearingDeg: 0,
+  },
   follow: {
-    // AvoMap-like "North True" default: stable heading, calmer frustum.
+    // Legacy alias — routed through cinematic director.
     label: 'Follow',
-    zoom: 15,
-    pitch: 48,
-    forwardOffsetM: -18,
+    zoom: 14.8,
+    pitch: 58,
+    forwardOffsetM: -28,
     rightOffsetM: 0,
     relativeBearing: 0,
     bearingDeg: 0,
   },
   bird: {
     label: 'Bird',
-    zoom: 14.2,
-    pitch: 22,
+    zoom: 13.6,
+    pitch: 48,
     forwardOffsetM: 0,
     rightOffsetM: 0,
     relativeBearing: 0,
@@ -23,7 +32,9 @@ export const CAMERA_PRESETS = {
 };
 
 export function normalizeCameraPreset(preset) {
-  return preset === 'bird' ? 'bird' : 'follow';
+  if (preset === 'bird') return 'bird';
+  if (preset === 'manual') return 'manual';
+  return 'cinematic';
 }
 
 function toRad(d) {
@@ -176,8 +187,8 @@ function cameraOptions(target, elevation) {
   };
 }
 
-export function defaultShotForMode(modeKey = 'follow') {
-  const preset = CAMERA_PRESETS[normalizeCameraPreset(modeKey)] || CAMERA_PRESETS.follow;
+export function defaultShotForMode(modeKey = 'cinematic') {
+  const preset = CAMERA_PRESETS[normalizeCameraPreset(modeKey)] || CAMERA_PRESETS.cinematic;
   return {
     mode: modeKey,
     zoom: preset.zoom,
@@ -214,6 +225,51 @@ export function captureShot(map, sample, modeKey = 'follow') {
   };
 }
 
+/**
+ * Soft keep-in-frame for terrain-showcase cinematography.
+ * Only nudges when the trail pin is fully (or nearly) off-canvas.
+ * Does NOT recenter to screen middle — landscape can own the composition.
+ */
+function keepActorOnScreen(map, actorPoint, elevation, margins = {}) {
+  if (!map || !actorPoint) return;
+  const canvas = map.getCanvas?.();
+  const w = canvas?.clientWidth || canvas?.width || 0;
+  const h = canvas?.clientHeight || canvas?.height || 0;
+  if (w < 32 || h < 32) return;
+
+  // Soft outer margin — pin may sit in corners / lower third.
+  const pad = margins.pad ?? 0.02;
+  const left = w * pad;
+  const right = w * (1 - pad);
+  const top = h * pad;
+  const bottom = h * (1 - (margins.bottom ?? 0.06));
+
+  const p = map.project([actorPoint.lng, actorPoint.lat]);
+  const onCanvas =
+    p.x >= left && p.x <= right && p.y >= top && p.y <= bottom;
+  if (onCanvas) return;
+
+  // Nudge just enough to bring the pin onto the canvas edge — never snap to center.
+  let dx = 0;
+  let dy = 0;
+  if (p.x < left) dx = p.x - left;
+  else if (p.x > right) dx = p.x - right;
+  if (p.y < top) dy = p.y - top;
+  else if (p.y > bottom) dy = p.y - bottom;
+
+  const center = map.getCenter();
+  const cpx = map.project(center);
+  const next = map.unproject([cpx.x + dx, cpx.y + dy]);
+  const jump = {
+    center: [next.lng, next.lat],
+    bearing: map.getBearing(),
+    pitch: map.getPitch(),
+    zoom: map.getZoom(),
+  };
+  if (Number.isFinite(elevation)) jump.elevation = elevation;
+  map.jumpTo(jump);
+}
+
 export function applyShot(
   map,
   shot,
@@ -222,21 +278,25 @@ export function applyShot(
 ) {
   if (!shot || !sample) return;
 
-  const centerPoint = offsetPoint(
-    sample.point,
-    shot.focusForwardM ?? shot.forwardOffsetM ?? 0,
-    shot.focusRightM ?? shot.rightOffsetM ?? 0,
-    sample.bearing ?? 0,
-  );
+  // Landscape look-at is primary (terrain-first). Fall back to actor+offset.
+  const lookBearing = Number.isFinite(shot.bearingDeg)
+    ? normalizeBearing(shot.bearingDeg)
+    : normalizeBearing((sample.bearing ?? 0) + (shot.relativeBearing ?? 0));
+
+  let centerPoint;
+  if (Number.isFinite(shot.lookAtLng) && Number.isFinite(shot.lookAtLat)) {
+    centerPoint = { lat: shot.lookAtLat, lng: shot.lookAtLng };
+  } else {
+    const rawForward = shot.focusForwardM ?? shot.forwardOffsetM ?? 0;
+    const rawRight = shot.focusRightM ?? shot.rightOffsetM ?? 0;
+    const focusForwardM = Math.max(0, Math.min(180, rawForward));
+    const focusRightM = Math.max(-120, Math.min(120, rawRight));
+    centerPoint = offsetPoint(sample.point, focusForwardM, focusRightM, lookBearing);
+  }
   const target = {
     lat: centerPoint.lat,
     lng: centerPoint.lng,
-    // If the shot captured an explicit heading, use it and keep it stable.
-    // Otherwise derive once from route bearing + relative offset and freeze.
-    bearing: (() => {
-      if (Number.isFinite(shot.bearingDeg)) return normalizeBearing(shot.bearingDeg);
-      return normalizeBearing((sample.bearing ?? 0) + (shot.relativeBearing ?? 0));
-    })(),
+    bearing: lookBearing,
     pitch: shot.pitch ?? 0,
     zoom: shot.zoom ?? 14,
   };
@@ -270,6 +330,21 @@ export function applyShot(
   if (!Number.isFinite(shot.bearingDeg) && Number.isFinite(target.bearing)) {
     shot.bearingDeg = normalizeBearing(target.bearing);
   }
+
+  // When using legacy offsets, re-resolve with guarded bearing.
+  if (!(Number.isFinite(shot.lookAtLng) && Number.isFinite(shot.lookAtLat))) {
+    const rawForward = shot.focusForwardM ?? shot.forwardOffsetM ?? 0;
+    const rawRight = shot.focusRightM ?? shot.rightOffsetM ?? 0;
+    const framedCenter = offsetPoint(
+      sample.point,
+      Math.max(0, Math.min(180, rawForward)),
+      Math.max(-120, Math.min(120, rawRight)),
+      target.bearing,
+    );
+    target.lat = framedCenter.lat;
+    target.lng = framedCenter.lng;
+  }
+
   const terrainInfo = resolveTerrainAwareElevation(
     map,
     target,
@@ -278,8 +353,8 @@ export function applyShot(
     continuous && terrainGuard?.enabled
       ? {
           ...terrainGuard,
-          sampleCount: 4,
-          sampleRadiusM: 50,
+          sampleCount: 3,
+          sampleRadiusM: 40,
           elevationSmoothing: terrainGuard.elevationSmoothing ?? 0.22,
         }
       : terrainGuard,
@@ -288,7 +363,14 @@ export function applyShot(
 
   // During playback use jumpTo every frame — small per-frame deltas produce smooth motion.
   // easeTo stacks animations and causes wobble; jumpTo at display rate is stable.
+  try {
+    // Safety: never let prepare corridor clamps fight the film camera.
+    if (map.getMaxBounds?.()) map.setMaxBounds(null);
+  } catch {
+    // ignore
+  }
   map.jumpTo(options);
+  keepActorOnScreen(map, sample.point, terrainInfo.elevation);
   return terrainInfo;
 }
 
@@ -338,29 +420,24 @@ export function fitOverview(map, bounds, { maxElevationM = null } = {}) {
   map.triggerRepaint();
 }
 
+import {
+  TERRAIN_SOURCE_ID,
+  ensureTerrainSource,
+  applyMap3dMode as applyPeMap3dMode,
+  syncMap3dGestures,
+} from './mapLibreShared.js';
+
+export {
+  TERRAIN_SOURCE_ID,
+  ensureTerrainSource,
+  syncMap3dGestures,
+};
+export { applyPeMap3dMode as applyMap3dMode };
+
+/** Ensure Peak Explorer Mapterhorn DEM is available on the current style. */
 export function addTerrainSource(map) {
   try {
-    if (!map.getLayer('terrain-background')) {
-      const beforeId = map.getStyle().layers?.[0]?.id;
-      map.addLayer(
-        {
-          id: 'terrain-background',
-          type: 'background',
-          paint: { 'background-color': '#0b1020' },
-        },
-        beforeId,
-      );
-    }
-
-    if (!map.getSource('terrain-dem')) {
-      map.addSource('terrain-dem', {
-        type: 'raster-dem',
-        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-        encoding: 'terrarium',
-        tileSize: 256,
-        maxzoom: 15,
-      });
-    }
+    ensureTerrainSource(map);
   } catch {
     // terrain is optional
   }
@@ -374,16 +451,36 @@ export function disableTerrain(map) {
   }
 }
 
-export function enableTerrain(map) {
+/**
+ * Enable DEM terrain for playback (no camera ease — animator owns the shot).
+ * Uses Peak Explorer Mapterhorn source + default exaggeration.
+ */
+export function enableTerrain(map, exaggeration = 1.6) {
   try {
-    addTerrainSource(map);
-    if (!map.getTerrain?.()) {
-      map.setTerrain({ source: 'terrain-dem', exaggeration: 1.2 });
-      map.setCenterClampedToGround(false);
+    ensureTerrainSource(map);
+    const current = map.getTerrain?.();
+    if (!current) {
+      map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration });
+      map.setCenterClampedToGround?.(false);
+    } else if (current.source !== TERRAIN_SOURCE_ID) {
+      map.setTerrain({
+        source: TERRAIN_SOURCE_ID,
+        exaggeration: current.exaggeration ?? exaggeration,
+      });
+      map.setCenterClampedToGround?.(false);
     }
   } catch {
     // terrain is optional
   }
+}
+
+/**
+ * Full Peak Explorer 2D/3D mode (terrain + hillshade + buildings + gestures).
+ * Prefer this for Map 2D / Map 3D UI toggles; use enableTerrain/disableTerrain
+ * during playback stall recovery.
+ */
+export function setMap3dMode(map, enabled, options = {}) {
+  applyPeMap3dMode(map, enabled, options);
 }
 
 export function queryTerrainElevationAt(map, lng, lat, hintM = null) {

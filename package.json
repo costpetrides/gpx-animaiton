@@ -1,10 +1,9 @@
 {
-  "name": "gpx-animator",
-  "productName": "GPX Animator Studio",
+  "name": "gpx-cinematic-renderer",
   "private": true,
-  "version": "1.0.0",
-  "description": "GPX Animator Studio — desktop app for animating GPS tracks on a 3D map",
-  "author": "GPX Animator Studio",
+  "version": "1.2.0",
+  "description": "Cinematic GPX video rendering engine — upload a trail, preview the film, export MP4",
+  "author": "GPX Cinematic Renderer",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -25,11 +24,12 @@
     "electron": "^37.2.0",
     "electron-builder": "^26.0.12",
     "linkedom": "^0.18.13",
+    "playwright": "^1.54.0",
     "vite": "^6.3.5"
   },
   "build": {
-    "appId": "com.gpxanimator.studio",
-    "productName": "GPX Animator Studio",
+    "appId": "com.gpx3drenderer.app",
+    "productName": "GPX Cinematic Renderer",
     "directories": {
       "output": "release"
     },
@@ -40,10 +40,9 @@
     ],
     "mac": {
       "category": "public.app-category.graphics-design",
-      "identity": null,
       "target": [
-        "dir",
-        "dmg"
+        "dmg",
+        "zip"
       ]
     },
     "win": {

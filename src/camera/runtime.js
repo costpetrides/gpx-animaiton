@@ -1,6 +1,6 @@
 import { applyShot, defaultShotForMode } from '../camera.js';
 
-export function createCameraRuntimeState(preset = 'follow', shot = null) {
+export function createCameraRuntimeState(preset = 'cinematic', shot = null) {
   return {
     preset,
     shot: shot || defaultShotForMode(preset),

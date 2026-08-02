@@ -1,18 +1,25 @@
 import { CAMERA_PRESETS, normalizeCameraPreset } from '../camera.js';
 
-export const CAMERA_MODES = ['follow', 'bird'];
+export const CAMERA_MODES = ['cinematic', 'manual'];
 export const BEARING_MODES = ['north-true', 'route', 'fixed'];
+export const CAMERA_STYLES = ['cinematic', 'intimate', 'aerial'];
 
 export const AVO_CAMERA_LIMITS = {
-  altitude: { min: 0, max: 1500, step: 1, default: 80 },
-  tilt: { min: 0, max: 80, step: 1, default: 48 },
+  altitude: { min: 0, max: 1500, step: 1, default: 160 },
+  tilt: { min: 0, max: 80, step: 1, default: 56 },
   focusForward: { min: -120, max: 200, step: 1, default: 0 },
   focusRight: { min: -120, max: 120, step: 1, default: 0 },
 };
 
-export function createDefaultCameraRig(preset = 'follow') {
-  const mode = preset === 'bird' ? 'bird' : 'follow';
-  const p = CAMERA_PRESETS[mode];
+function clamp01(v, fallback = 0.5) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(1, n));
+}
+
+export function createDefaultCameraRig(preset = 'cinematic') {
+  const mode = normalizeCameraPreset(preset);
+  const p = CAMERA_PRESETS[mode] || CAMERA_PRESETS.cinematic;
   const tilt = Math.min(AVO_CAMERA_LIMITS.tilt.max, p.pitch);
   return {
     altitudeM: AVO_CAMERA_LIMITS.altitude.default,
@@ -27,7 +34,12 @@ export function createDefaultCameraRig(preset = 'follow') {
     zoom: p.zoom,
     focusForwardM: 0,
     focusRightM: 0,
-    smoothing: { position: 0.8, bearing: 0.6, elevation: 0.7 },
+    cameraStyle: 'cinematic',
+    cameraDistance: 0.55,
+    cameraHeight: 0.55,
+    cameraSmoothness: 0.7,
+    cinematicIntensity: 0.55,
+    smoothing: { position: 0.8, bearing: 0.7, elevation: 0.75 },
   };
 }
 
@@ -35,7 +47,22 @@ export function rigFromPreset(preset) {
   return createDefaultCameraRig(preset);
 }
 
-export function rigToShot(rig, preset = 'follow') {
+export function normalizeCameraStyle(style) {
+  if (CAMERA_STYLES.includes(style)) return style;
+  return 'cinematic';
+}
+
+export function readCameraControlRig(rig = {}) {
+  return {
+    cameraStyle: normalizeCameraStyle(rig.cameraStyle),
+    cameraDistance: clamp01(rig.cameraDistance, 0.55),
+    cameraHeight: clamp01(rig.cameraHeight, 0.55),
+    cameraSmoothness: clamp01(rig.cameraSmoothness, 0.7),
+    cinematicIntensity: clamp01(rig.cinematicIntensity, 0.55),
+  };
+}
+
+export function rigToShot(rig, preset = 'cinematic') {
   const bearingMode = rig.bearingMode || 'north-true';
   const tilt = Number.isFinite(rig.tiltDeg) ? rig.tiltDeg : (rig.pitchDeg ?? 48);
   const focusForward = Number.isFinite(rig.focusForwardM)
@@ -67,7 +94,7 @@ export function rigToShot(rig, preset = 'follow') {
   };
 }
 
-export function shotToRig(shot, preset = 'follow') {
+export function shotToRig(shot, preset = 'cinematic') {
   const base = createDefaultCameraRig(preset);
   if (!shot) return base;
   return {
@@ -78,6 +105,9 @@ export function shotToRig(shot, preset = 'follow') {
     forwardOffsetM: shot.forwardOffsetM ?? base.forwardOffsetM,
     rightOffsetM: shot.rightOffsetM ?? base.rightOffsetM,
     distanceM: Math.abs(shot.forwardOffsetM ?? base.forwardOffsetM),
+    focusForwardM: shot.focusForwardM ?? shot.forwardOffsetM ?? base.focusForwardM,
+    focusRightM: shot.focusRightM ?? shot.rightOffsetM ?? base.focusRightM,
+    altitudeM: shot.altitudeM ?? base.altitudeM,
     relativeBearing: shot.relativeBearing ?? base.relativeBearing,
     bearingDeg: shot.bearingDeg ?? base.bearingDeg,
     bearingMode: shot.bearingDeg != null ? 'fixed' : (shot.relativeBearing ? 'route' : 'north-true'),

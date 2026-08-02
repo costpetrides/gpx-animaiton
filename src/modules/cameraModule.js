@@ -22,7 +22,7 @@ export function createCameraModule(ctx) {
       const camera = state.document.project.camera;
 
       if (intent === 'set-preset') {
-        const preset = payload.preset === 'bird' ? 'bird' : 'follow';
+        const preset = payload.preset === 'manual' ? 'manual' : 'cinematic';
         const rig = rigFromPreset(preset);
         ctx.dispatch({
           type: 'project/set-camera-config',

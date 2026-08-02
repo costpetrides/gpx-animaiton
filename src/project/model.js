@@ -12,6 +12,17 @@ function createRouteId() {
   return `route-${Date.now().toString(36)}`;
 }
 
+function computeElevationGainM(rawPoints) {
+  let gain = 0;
+  let prev = null;
+  for (const point of rawPoints || []) {
+    if (!Number.isFinite(point?.ele)) continue;
+    if (prev != null && point.ele > prev) gain += point.ele - prev;
+    prev = point.ele;
+  }
+  return gain;
+}
+
 function createRouteStats(routePath) {
   const start = routePath.raw[0];
   const end = routePath.raw[routePath.raw.length - 1];
@@ -23,6 +34,7 @@ function createRouteStats(routePath) {
     hasTime: routePath.hasTime,
     startElevation: start?.ele ?? null,
     endElevation: end?.ele ?? null,
+    elevationGain: computeElevationGainM(routePath.raw),
   };
 }
 
@@ -59,25 +71,26 @@ export function createEmptyProjectDocument() {
       updatedAt: new Date().toISOString(),
       route: null,
       camera: {
-        preset: 'follow',
-        mode: 'follow',
-        rig: createDefaultCameraRig('follow'),
+        preset: 'cinematic',
+        mode: 'cinematic',
+        rig: createDefaultCameraRig('cinematic'),
         shot: null,
         segments: [],
       },
       track: {
-        color: '#3b82f6',
-        width: 5,
-        glowWidth: 12,
+        // Rayshaderanimate hero path cyan — trail must dominate the film.
+        color: '#0f9ad1',
+        width: 6,
+        glowWidth: 16,
         opacity: 1,
         showFullRoute: true,
       },
       map: {
-        styleKey: 'satellite',
+        styleKey: 'outdoor',
         terrainEnabled: true,
         terrain: {
           quality: 'balanced',
-          exaggeration: 1.2,
+          exaggeration: 1.6,
         },
       },
       layers: {
@@ -96,7 +109,8 @@ export function createEmptyProjectDocument() {
       },
       playback: {
         speed: 1,
-        prepareQuality: 'fast',
+        // Balanced prefetch: load corridor terrain before Play (cinematic quality).
+        prepareQuality: 'balanced',
       },
       export: {
         format: 'mp4',

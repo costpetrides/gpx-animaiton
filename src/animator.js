@@ -6,8 +6,10 @@ import {
   disableTerrain,
   enableTerrain,
   fitOverview,
+  setMap3dMode,
   stopCameraAnimation,
 } from './camera.js';
+import { syncMap3dGestures } from './mapLibreShared.js';
 import {
   createPlaybackState,
   getPlaybackDuration,
@@ -26,12 +28,14 @@ import { createPlaybackPrepareCoordinator } from './playback/prepareCoordinator.
 import { mapReasonToIntent, PREPARE_INTENT, PREPARE_QUALITY } from './playback/preparePlans.js';
 import { resolveCameraShotFromDocument } from './modules/cameraModule.js';
 import { rigToShot } from './camera/rig.js';
+import { createCameraDirector } from './camera/cinematic/index.js';
 
 export function createAnimator(map, ui, {
   terrainStream = null,
   getPrepareQuality = () => 'balanced',
   getCameraDocument = () => null,
   getTrackStyle = () => null,
+  getCinematicIntensity = () => 0.65,
 } = {}) {
   const renderer = createMapPlaybackRenderer(map);
   const probe = createPlaybackProbe({
@@ -45,9 +49,23 @@ export function createAnimator(map, ui, {
   let animDistance = 0;
   let playing = false;
   let lastFrame = 0;
+  /** Wall-clock anchor so heavy camera frames cannot starve film time. */
+  let playbackClock = null;
   let currentSpeed = 0;
   let speedMul = 1;
-  let cameraState = createCameraRuntimeState('follow');
+  let cameraState = createCameraRuntimeState('cinematic');
+  const cameraDirector = createCameraDirector({
+    map,
+    getRig: () => {
+      const doc = getCameraDocument?.();
+      return doc?.rig || null;
+    },
+    getIntensity: () => {
+      const doc = getCameraDocument?.();
+      if (Number.isFinite(doc?.rig?.cinematicIntensity)) return doc.rig.cinematicIntensity;
+      return getCinematicIntensity();
+    },
+  });
   let renderFrameId = null;
   let lastAppliedCadenceTick = -1;
   let terrainBarrierActive = false;
@@ -68,7 +86,24 @@ export function createAnimator(map, ui, {
     onPhase: (phase, detail) => ui.onPreparePhase?.(phase, detail),
     onArmed: ({ reason, degraded }) => {
       terrainDegraded = Boolean(degraded);
+      // Corridor maxBounds block pitched framing at trail ends — release for film.
+      terrainStream?.releaseCameraBounds?.();
+      // Prepare-time terrain features for landscape look-ats.
+      if (route) {
+        try {
+          cameraDirector.ensureTerrainFeatures?.(route);
+        } catch {
+          // Features are optional; director falls back to offset look-ats.
+        }
+      }
       const frameState = getCurrentFrameState();
+      if (frameState) {
+        applyCameraFrame(
+          map,
+          resolveCameraFrameForView(frameState, { continuous: false }),
+          { continuous: false },
+        );
+      }
       updateHUD(frameState);
       ui.onPlaybackArmed?.(reason, degraded);
       if (prepareResumePlayback) {
@@ -108,7 +143,8 @@ export function createAnimator(map, ui, {
         resetPlaybackCameraGuards();
         const frameState = getCurrentFrameState();
         syncTerrainHealth(frameState);
-        applyCameraFrame(map, resolveCameraFrameForView(frameState), { continuous: false });
+        applyCameraFrame(map, resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false });
         lastAppliedCadenceTick = frameState?.playback?.cadenceTick ?? -1;
       },
       stabilizeTerrain: () => {
@@ -166,7 +202,7 @@ export function createAnimator(map, ui, {
     syncMapState(frameState);
     applyCameraFrame(
       map,
-      resolveCameraFrameForView(frameState),
+      resolveCameraFrameForView(frameState, { continuous: false }),
       { continuous: false },
     );
     updateHUD(frameState);
@@ -180,12 +216,75 @@ export function createAnimator(map, ui, {
         cameraState.terrainGuard.bearingGuard.lastBearingDeg = null;
       }
     }
+    cameraDirector.reset();
     clearTerrainBarrier();
   }
 
   function clearTerrainBarrier() {
     terrainBarrierGeneration += 1;
     terrainBarrierActive = false;
+  }
+
+  function isCinematicCamera(doc = getCameraDocument?.()) {
+    const preset = doc?.preset || cameraState?.preset || 'cinematic';
+    // Default path is cinematic; legacy follow/bird still map here for now.
+    return preset !== 'manual';
+  }
+
+  function resolveCameraFrameForView(frameState, { continuous = true } = {}) {
+    const cameraFrame = resolveCameraFrame(frameState, cameraState);
+    if (!cameraFrame) return null;
+
+    const doc = getCameraDocument?.();
+    if (mapViewMode !== '2d' && isCinematicCamera(doc) && route && frameState?.sample) {
+      const directed = cameraDirector.resolveShot({
+        sample: frameState.sample,
+        route,
+        animDistance,
+        continuous,
+        animTime,
+      });
+      if (directed?.shot) {
+        const frame = applyViewToCameraFrame({
+          ...cameraFrame,
+          shot: directed.shot,
+        });
+        if (frame.terrainGuard?.bearingGuard) {
+          // Terrain-showcase: allow slow drone pans without whip-turns.
+          frame.terrainGuard.bearingGuard.maxDeltaDegPerUpdate = 1.35;
+          frame.terrainGuard.bearingGuard.minDeltaDeg = 0.08;
+        }
+        // Keep DEM clearance; director already lifts when needed.
+        if (frame.terrainGuard) {
+          frame.terrainGuard.minClearanceM = Math.max(frame.terrainGuard.minClearanceM ?? 40, 36);
+          if (Number.isFinite(frame.terrainGuard.elevationSmoothAlpha)) {
+            frame.terrainGuard.elevationSmoothAlpha = Math.min(
+              frame.terrainGuard.elevationSmoothAlpha,
+              0.12,
+            );
+          } else {
+            frame.terrainGuard.elevationSmoothAlpha = 0.1;
+          }
+        }
+        return frame;
+      }
+    }
+
+    if (doc) {
+      const shot = resolveCameraShotFromDocument(
+        doc,
+        animTime,
+        getDuration(),
+        doc.timelineKeyframes,
+      );
+      const frame = applyViewToCameraFrame({ ...cameraFrame, shot });
+      if (doc.rig?.smoothing && frame.terrainGuard?.bearingGuard) {
+        const smooth = doc.rig.smoothing.bearing ?? 0.6;
+        frame.terrainGuard.bearingGuard.maxDeltaDegPerUpdate = 0.6 + (1 - smooth) * 5;
+      }
+      return frame;
+    }
+    return applyViewToCameraFrame(cameraFrame);
   }
 
   function beginTerrainBarrier(elevationHint) {
@@ -253,7 +352,8 @@ export function createAnimator(map, ui, {
       // while map tiles and terrain DEM load in the background.
       fitOverview(map, routeBounds, { maxElevationM });
     } else {
-      applyCameraFrame(map, resolveCameraFrameForView(frameState), { continuous: false });
+      applyCameraFrame(map, resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false });
     }
 
     refreshProgressLayers(frameState, true);
@@ -302,58 +402,51 @@ export function createAnimator(map, ui, {
     return { ...cameraFrame, shot, terrainGuard };
   }
 
-  function resolveCameraFrameForView(frameState) {
-    const cameraFrame = resolveCameraFrame(frameState, cameraState);
-    const doc = getCameraDocument?.();
-    if (doc) {
-      const shot = resolveCameraShotFromDocument(
-        doc,
-        animTime,
-        getDuration(),
-        doc.timelineKeyframes,
-      );
-      const frame = applyViewToCameraFrame({ ...cameraFrame, shot });
-      if (doc.rig?.smoothing && frame.terrainGuard?.bearingGuard) {
-        const smooth = doc.rig.smoothing.bearing ?? 0.6;
-        frame.terrainGuard.bearingGuard.maxDeltaDegPerUpdate = 0.6 + (1 - smooth) * 5;
-      }
-      return frame;
-    }
-    return applyViewToCameraFrame(cameraFrame);
+  function getTerrainExaggeration() {
+    const current = map.getTerrain?.();
+    const fromMap = current?.exaggeration;
+    return Number.isFinite(fromMap) ? fromMap : 1.6;
   }
 
   function setMapViewMode(mode) {
-    mapViewMode = mode === '2d' ? '2d' : '3d';
+    const next = mode === '2d' ? '2d' : '3d';
+    // Already in this mode — never re-run the prepare pipeline (that was
+    // disarming Play right after the scene finished arming).
+    if (mapViewMode === next) {
+      syncMap3dGestures(map, next === '3d');
+      return;
+    }
+    mapViewMode = next;
+    const enabled3d = mapViewMode === '3d';
 
-    if (mapViewMode === '2d') {
-      try {
-        map.setTerrain(null);
-      } catch {
-        // ignore
-      }
+    // Peak Explorer logic: 3D = terrain + hillshade + buildings; 2D clears them.
+    // animate:false so route camera ownership stays with the animator.
+    setMap3dMode(map, enabled3d && !terrainDegraded, {
+      pitch: enabled3d ? 58 : 0,
+      bearing: map.getBearing?.() ?? 0,
+      exaggeration: getTerrainExaggeration(),
+      buildings: enabled3d,
+      animate: false,
+    });
+    syncMap3dGestures(map, enabled3d);
+
+    if (!enabled3d) {
       if (cameraState?.terrainGuard) {
         cameraState.terrainGuard.enabled = false;
         cameraState.terrainGuard.lastEnvelopeM = null;
         cameraState.terrainGuard.bearingGuard.enabled = false;
       }
-    } else {
-      addTerrainSource(map);
-      if (route) {
-        enableTerrain(map);
-      } else {
-        disableTerrain(map);
-      }
-      if (cameraState?.terrainGuard) {
-        cameraState.terrainGuard.enabled = true;
-        cameraState.terrainGuard.lastEnvelopeM = null;
-        cameraState.terrainGuard.bearingGuard.enabled = true;
-      }
+    } else if (cameraState?.terrainGuard) {
+      cameraState.terrainGuard.enabled = !terrainDegraded;
+      cameraState.terrainGuard.lastEnvelopeM = null;
+      cameraState.terrainGuard.bearingGuard.enabled = true;
     }
 
     if (route) {
       const frameState = getCurrentFrameState();
       syncMapState(frameState);
-      applyCameraFrame(map, resolveCameraFrameForView(frameState), { continuous: false });
+      applyCameraFrame(map, resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false });
       const wasPlaying = playing;
       if (wasPlaying) {
         playing = false;
@@ -376,19 +469,19 @@ export function createAnimator(map, ui, {
     const trackStyle = getTrackStyle?.();
     if (trackStyle) renderer.applyTrackStyle?.(trackStyle);
     if (route) refreshLayers(getCurrentFrameState());
-    // `renderer.addLayers()` always enables terrain for the MapLibre 3D path.
-    // In 2D we must keep terrain disabled even after style reloads.
-    if (mapViewMode === '2d') {
-      try {
-        map.setTerrain(null);
-      } catch {
-        // ignore
-      }
-      if (cameraState?.terrainGuard) {
-        cameraState.terrainGuard.enabled = false;
-        cameraState.terrainGuard.lastEnvelopeM = null;
-        cameraState.terrainGuard.bearingGuard.enabled = false;
-      }
+    // Peak Explorer: re-assert 2D/3D after style/layer rebuilds.
+    setMap3dMode(map, mapViewMode === '3d' && !terrainDegraded, {
+      pitch: mapViewMode === '3d' ? 58 : 0,
+      bearing: map.getBearing?.() ?? 0,
+      exaggeration: getTerrainExaggeration(),
+      buildings: mapViewMode === '3d',
+      animate: false,
+    });
+    syncMap3dGestures(map, mapViewMode === '3d');
+    if (mapViewMode === '2d' && cameraState?.terrainGuard) {
+      cameraState.terrainGuard.enabled = false;
+      cameraState.terrainGuard.lastEnvelopeM = null;
+      cameraState.terrainGuard.bearingGuard.enabled = false;
     }
   }
 
@@ -431,6 +524,7 @@ export function createAnimator(map, ui, {
     animTime = playbackState.animTime;
     currentSpeed = playbackState.currentSpeed;
     lastFrame = 0;
+    playbackClock = null;
     lastAppliedCadenceTick = -1;
   }
 
@@ -501,6 +595,8 @@ export function createAnimator(map, ui, {
 
   function updateHUD(frameState = getCurrentFrameState()) {
     if (!frameState) return;
+    const durationSec = getDuration();
+    const currentTimeSec = frameState.playback.animTime;
     ui.update({
       name: frameState.routeName,
       distance: frameState.hud.distance,
@@ -509,8 +605,13 @@ export function createAnimator(map, ui, {
       elevation: frameState.hud.elevation,
       progress: frameState.hud.progress,
       duration: frameState.hud.duration,
+      durationSec,
+      currentTimeSec,
+      remainingSec: Math.max(0, durationSec - currentTimeSec),
       timeline: frameState.hud.timeline,
       chartProgress: frameState.hud.chartProgress,
+      playing,
+      speedMul,
     });
   }
 
@@ -537,10 +638,12 @@ export function createAnimator(map, ui, {
     }
 
     lastAppliedCadenceTick = -1;
-    resetPlaybackCameraGuards();
+    // Keep director continuity across pause/play; only hard-reset at trail start.
+    if (animDistance < 1) resetPlaybackCameraGuards();
     syncTerrainHealth(getCurrentFrameState());
     playing = true;
     lastFrame = 0;
+    playbackClock = { wallMs: performance.now(), animSec: animTime };
     ui.setPlaying(true);
     cancelPlaybackFrame();
     clearTerrainBarrier();
@@ -552,8 +655,13 @@ export function createAnimator(map, ui, {
     if (!playing || !route) return;
 
     try {
-      if (!lastFrame) lastFrame = ts;
-      const dt = Math.min((ts - lastFrame) / 1000, 0.05);
+      if (!playbackClock) {
+        playbackClock = { wallMs: ts, animSec: animTime };
+      }
+      // Advance film time from wall clock so DEM/camera cost cannot stall playback.
+      const targetAnim = playbackClock.animSec + (ts - playbackClock.wallMs) / 1000;
+      // Cap only protects against huge jumps after a long background tab pause.
+      const dt = Math.min(Math.max(0, targetAnim - animTime), 1.0);
       lastFrame = ts;
       probe.markLoop(dt);
 
@@ -606,13 +714,15 @@ export function createAnimator(map, ui, {
           resetPlaybackCameraGuards();
           const loopFrame = getCurrentFrameState();
           syncMapState(loopFrame);
-          applyCameraFrame(map, resolveCameraFrameForView(loopFrame), { continuous: false });
+          applyCameraFrame(map, resolveCameraFrameForView(loopFrame, { continuous: false }), { continuous: false });
           updateHUD(loopFrame);
           lastFrame = 0;
+          playbackClock = { wallMs: performance.now(), animSec: 0 };
           renderFrameId = requestAnimationFrame(frame);
           return;
         }
         playing = false;
+        playbackClock = null;
         stopCameraAnimation(map);
         ui.setPlaying(false);
         probe.flush('playback-finished');
@@ -623,6 +733,7 @@ export function createAnimator(map, ui, {
     } catch (err) {
       console.error('Animation error:', err);
       playing = false;
+      playbackClock = null;
       stopCameraAnimation(map);
       ui.setPlaying(false);
       probe.flush('playback-error');
@@ -646,6 +757,7 @@ export function createAnimator(map, ui, {
     pause() {
       playing = false;
       lastFrame = 0;
+      playbackClock = null;
       currentSpeed = 0;
       cancelPlaybackFrame();
       clearTerrainBarrier();
@@ -654,36 +766,48 @@ export function createAnimator(map, ui, {
       if (route) updateHUD(getCurrentFrameState(getCurrentSample(), 0));
     },
     reset() {
+      // Seek to start only — never re-run terrain preparation.
       this.pause();
-      route?.resetTraveledCache?.();
+      if (!route) return;
+      route.resetTraveledCache?.();
+      renderer.resetProgressCache?.();
       setPlaybackState({ animTime: 0, animDistance: 0 });
+      resetPlaybackCameraGuards();
       const frameState = getCurrentFrameState();
       syncMapState(frameState);
       applyCameraFrame(
         map,
-        resolveCameraFrameForView(frameState),
+        resolveCameraFrameForView(frameState, { continuous: false }),
         { continuous: false },
       );
       updateHUD(frameState);
-      schedulePrepare('reset', { fitOnLoad: false });
     },
     scrubPreview(value) {
       if (!route) return;
       applyTimelinePosition(value);
     },
     scrubCommit(value) {
+      // Frame-accurate seek only — never disarm / re-prepare.
       if (!route) return;
       applyTimelinePosition(value);
-      schedulePrepare('scrub', { fitOnLoad: false });
     },
     scrub(value) {
       this.scrubCommit(value);
     },
     setSpeed(mul) {
-      speedMul = mul;
-      if (!playing && route) {
-        animTime = clampTime(animTime);
+      const nextMul = Math.max(Number(mul) || 1, 0.001);
+      if (!route) {
+        speedMul = nextMul;
+        return;
+      }
+      // Keep position on the trail; recompute clock from distance progress.
+      const distPct = route.totalDistance > 0 ? animDistance / route.totalDistance : 0;
+      speedMul = nextMul;
+      setPlaybackState(seekPlaybackProgress(route, distPct, speedMul));
+      if (!playing) {
         updateHUD(getCurrentFrameState(getCurrentSample(), 0));
+      } else {
+        updateHUD(getCurrentFrameState());
       }
     },
     setLoopEnabled(enabled) {
@@ -699,8 +823,8 @@ export function createAnimator(map, ui, {
         lastAppliedCadenceTick = frameState?.playback?.cadenceTick ?? -1;
         applyCameraFrame(
           map,
-          resolveCameraFrameForView(frameState),
-          { continuous: false },
+          resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false },
         );
         schedulePrepare('camera', { fitOnLoad: false });
       }
@@ -724,8 +848,13 @@ export function createAnimator(map, ui, {
     },
     setTerrainExaggeration(value) {
       try {
-        if (map.getTerrain()) {
-          map.setTerrain({ ...map.getTerrain(), exaggeration: value });
+        const exaggeration = Number(value);
+        if (!Number.isFinite(exaggeration)) return;
+        if (mapViewMode !== '3d' || terrainDegraded) return;
+        enableTerrain(map, exaggeration);
+        const current = map.getTerrain?.();
+        if (current) {
+          map.setTerrain({ ...current, exaggeration });
         }
       } catch {
         // ignore
@@ -734,15 +863,22 @@ export function createAnimator(map, ui, {
     setTerrainEnabled(enabled) {
       terrainDegraded = !enabled;
       if (enabled && mapViewMode === '3d') {
-        addTerrainSource(map);
-        enableTerrain(map);
+        setMap3dMode(map, true, {
+          pitch: map.getPitch?.() || 58,
+          bearing: map.getBearing?.() ?? 0,
+          exaggeration: getTerrainExaggeration(),
+          buildings: true,
+          animate: false,
+        });
+        syncMap3dGestures(map, true);
         if (cameraState?.terrainGuard) {
           cameraState.terrainGuard.enabled = true;
           cameraState.terrainGuard.smoothedElevationM = null;
           cameraState.terrainGuard.lastEnvelopeM = null;
         }
       } else {
-        disableTerrain(map);
+        setMap3dMode(map, false, { animate: false });
+        syncMap3dGestures(map, false);
         if (cameraState?.terrainGuard) {
           cameraState.terrainGuard.enabled = false;
           cameraState.terrainGuard.smoothedElevationM = null;
@@ -751,7 +887,8 @@ export function createAnimator(map, ui, {
       }
       if (route) {
         const frameState = getCurrentFrameState();
-        applyCameraFrame(map, resolveCameraFrameForView(frameState), { continuous: false });
+        applyCameraFrame(map, resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false });
         refreshProgressLayers(frameState, true);
       }
     },
@@ -774,18 +911,22 @@ export function createAnimator(map, ui, {
         const frameState = getCurrentFrameState();
         applyCameraFrame(
           map,
-          resolveCameraFrameForView(frameState),
-          { continuous: false },
+          resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false },
         );
       }
       ui.onShotChanged?.(cameraState.shot, cameraState.preset);
       return cameraState.shot;
     },
+    getDuration,
+    getSpeed: () => speedMul,
     getPlaybackState() {
       return {
         playing,
         animTime,
         animDistance,
+        duration: getDuration(),
+        speed: speedMul,
         shot: cameraState.shot,
         cameraPreset: cameraState.preset,
       };
@@ -799,7 +940,7 @@ export function createAnimator(map, ui, {
       routeName = '';
       routeReadyForPlayback = false;
       setPlaybackState({ animTime: 0, animDistance: 0 });
-      cameraState = createCameraRuntimeState('follow', null);
+      cameraState = createCameraRuntimeState('cinematic', null);
       renderer.resetRouteState();
       clearMapData();
       ui.onRouteCleared?.();

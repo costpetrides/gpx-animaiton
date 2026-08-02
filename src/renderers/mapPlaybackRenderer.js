@@ -21,9 +21,9 @@ const MARKER_PALETTE = {
     coreStroke: '#fff1f2',
   },
   actor: {
-    glow: '#93c5fd',
+    glow: '#0f9ad1',
     core: '#ffffff',
-    coreStroke: '#3b82f6',
+    coreStroke: '#0369a1',
   },
 };
 
@@ -66,10 +66,10 @@ function addActorMarkerLayers(map, sourceId) {
     type: 'circle',
     source: sourceId,
     paint: {
-      'circle-radius': 20,
+      'circle-radius': 30,
       'circle-color': palette.glow,
-      'circle-opacity': 0.28,
-      'circle-blur': 0.85,
+      'circle-opacity': 0.5,
+      'circle-blur': 0.65,
     },
   });
   map.addLayer({
@@ -77,9 +77,9 @@ function addActorMarkerLayers(map, sourceId) {
     type: 'circle',
     source: sourceId,
     paint: {
-      'circle-radius': 5.5,
+      'circle-radius': 8.5,
       'circle-color': palette.core,
-      'circle-stroke-width': 2.25,
+      'circle-stroke-width': 2.75,
       'circle-stroke-color': palette.coreStroke,
     },
   });
@@ -129,7 +129,7 @@ export function createMapPlaybackRenderer(map) {
       id: 'route-done-glow',
       type: 'line',
       source: 'route-done',
-      paint: { 'line-color': '#3b82f6', 'line-width': 12, 'line-opacity': 0.35, 'line-blur': 3 },
+      paint: { 'line-color': '#0f9ad1', 'line-width': 12, 'line-opacity': 0.4, 'line-blur': 3 },
     });
     map.addLayer({
       id: 'route-done',
@@ -137,12 +137,12 @@ export function createMapPlaybackRenderer(map) {
       source: 'route-done',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
-        'line-width': 5,
+        'line-width': 6,
         'line-gradient': [
           'interpolate', ['linear'], ['line-progress'],
-          0, '#2563eb',
-          0.85, '#60a5fa',
-          1, '#fbbf24',
+          0, '#0369a1',
+          0.7, '#0f9ad1',
+          1, '#7dd3fc',
         ],
       },
     });
@@ -297,7 +297,7 @@ export function createMapPlaybackRenderer(map) {
 
   function applyTrackStyle(style = {}) {
     if (!layersReady) return;
-    const color = style.color || '#3b82f6';
+    const color = style.color || '#0f9ad1';
     const width = style.width ?? 5;
     const glowWidth = style.glowWidth ?? 12;
     const opacity = style.opacity ?? 1;
