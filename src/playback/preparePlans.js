@@ -33,10 +33,14 @@ const QUALITY_BASE = {
       deadlineMs: 0,
     },
     fullRoute: {
-      enabled: false,
-      sampleStepM: 500,
-      maxSamples: 0,
-      deadlineMs: 0,
+      // Pre-warm the real playback camera along the full film so MapLibre has
+      // the vector + terrain tiles ready before Play. The sampler automatically
+      // spreads at most 32 views over long routes (for ~31 km, roughly 1 km
+      // apart) and uses denser spacing on shorter routes.
+      enabled: true,
+      sampleStepM: 350,
+      maxSamples: 32,
+      deadlineMs: 18000,
     },
   },
   [PREPARE_QUALITY.BALANCED]: {
