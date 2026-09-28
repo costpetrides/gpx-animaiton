@@ -159,19 +159,6 @@ export function createMapPlaybackRenderer(map) {
         },
       });
     }
-    if (!map.getLayer('route-done-glow')) {
-      map.addLayer({
-        id: 'route-done-glow',
-        type: 'line',
-        source: 'route-done',
-        paint: {
-          'line-color': '#0b6f99',
-          'line-width': 9,
-          'line-opacity': 0.22,
-          'line-blur': 2,
-        },
-      });
-    }
     if (!map.getLayer('route-done')) {
       map.addLayer({
         id: 'route-done',
@@ -462,8 +449,6 @@ export function createMapPlaybackRenderer(map) {
 
     if (map.getLayer('route-done')) {
       map.setPaintProperty('route-done', 'line-width', width);
-      map.setPaintProperty('route-done-glow', 'line-width', glowWidth);
-      map.setPaintProperty('route-done-glow', 'line-opacity', 0.35 * opacity);
     }
     if (map.getLayer('route-full')) {
       map.setPaintProperty('route-full', 'line-color', color);
