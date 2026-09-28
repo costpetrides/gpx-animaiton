@@ -420,7 +420,7 @@ function resolveOverviewCameraOptions(map, bounds, { maxElevationM = null } = {}
   );
 
   const camera = map.cameraForBounds(expanded, {
-    padding: { top: 80, bottom: 160, left: 40, right: 40 },
+    padding: 100,
     maxZoom: 14,
   });
   if (!camera) return null;
@@ -433,18 +433,20 @@ function resolveOverviewCameraOptions(map, bounds, { maxElevationM = null } = {}
     pitch: 0,
   };
 
-  // With 3D terrain enabled, include a safe camera elevation so the panoramic
-  // route overview remains visible while DEM tiles are active.
+  // MapLibre's camera `elevation` is the elevation of the map CENTER
+  // (look-at point), not camera altitude. The old overview code added a value
+  // derived from route span here, which could lift the center several
+  // kilometres above terrain on a long GPX and make the 1.5 s intro feel like
+  // a violent dive back to the trail.
+  //
+  // TrailReplay keeps the center tied to the terrain surface. Do the same:
+  // use the DEM elevation at the overview center and let zoom determine how
+  // far the camera sits from the route.
   if (map.getTerrain?.()) {
     const terrainEle = safeTerrainElevation(map, center.lng, center.lat, maxElevationM);
-    const baseElevation = terrainEle ?? maxElevationM ?? 0;
-    const latSpanM = Math.max((ne.lat - sw.lat) * metersPerDegreeLat(), 1);
-    const lngSpanM = Math.max(
-      (ne.lng - sw.lng) * metersPerDegreeLng(center.lat),
-      1,
-    );
-    const spanM = Math.max(latSpanM, lngSpanM);
-    options.elevation = baseElevation + Math.max(spanM * 0.65, 350);
+    if (Number.isFinite(terrainEle)) {
+      options.elevation = terrainEle;
+    }
   }
 
   return options;
