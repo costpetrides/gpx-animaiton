@@ -43,6 +43,7 @@ import {
   normalizeTrailReplayCameraMode,
 } from './camera/trailReplayPlan.js';
 
+async function bootstrap() {
 const store = createStudioStore();
 let lastLoadedRouteFingerprint = null;
 let kernel = null;
@@ -677,3 +678,12 @@ if (urlParams.has('gpxDebug')) {
     map,
   };
 }
+}
+
+bootstrap().catch((error) => {
+  console.error('Application startup failed:', error);
+  const loading = document.getElementById('loading-screen');
+  const status = document.getElementById('status-message');
+  if (status) status.textContent = `Startup failed: ${error?.message || error}`;
+  if (loading) loading.classList.add('hidden');
+});
