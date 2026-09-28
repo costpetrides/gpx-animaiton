@@ -378,7 +378,9 @@ export function stopCameraAnimation(map) {
   map.stop();
 }
 
-export function fitOverview(map, bounds, { maxElevationM = null } = {}) {
+function resolveOverviewCameraOptions(map, bounds, { maxElevationM = null } = {}) {
+  if (!map || !bounds) return null;
+
   const sw = bounds.getSouthWest();
   const ne = bounds.getNorthEast();
   const latPad = Math.max((ne.lat - sw.lat) * 0.12, 0.0008);
@@ -392,18 +394,18 @@ export function fitOverview(map, bounds, { maxElevationM = null } = {}) {
     padding: { top: 80, bottom: 160, left: 40, right: 40 },
     maxZoom: 14,
   });
-  if (!camera) return;
+  if (!camera) return null;
 
   const center = maplibregl.LngLat.convert(camera.center);
-  const jumpOptions = {
+  const options = {
     center: [center.lng, center.lat],
     zoom: camera.zoom,
     bearing: 0,
     pitch: 0,
   };
 
-  // With 3D terrain enabled, jumpTo must include camera elevation or the viewport
-  // stays on the dark terrain background until playback sets a terrain-aware shot.
+  // With 3D terrain enabled, include a safe camera elevation so the panoramic
+  // route overview remains visible while DEM tiles are active.
   if (map.getTerrain?.()) {
     const terrainEle = safeTerrainElevation(map, center.lng, center.lat, maxElevationM);
     const baseElevation = terrainEle ?? maxElevationM ?? 0;
@@ -413,11 +415,49 @@ export function fitOverview(map, bounds, { maxElevationM = null } = {}) {
       1,
     );
     const spanM = Math.max(latSpanM, lngSpanM);
-    jumpOptions.elevation = baseElevation + Math.max(spanM * 0.65, 350);
+    options.elevation = baseElevation + Math.max(spanM * 0.65, 350);
   }
 
-  map.jumpTo(jumpOptions);
+  return options;
+}
+
+export function fitOverview(map, bounds, options = {}) {
+  const camera = resolveOverviewCameraOptions(map, bounds, options);
+  if (!camera) return;
+  map.jumpTo(camera);
   map.triggerRepaint();
+}
+
+/**
+ * TrailReplay-style cinematic panorama transition.
+ * Used for the final pull-out and by export so preview/export share the same
+ * route framing target.
+ */
+export function flyOverview(
+  map,
+  bounds,
+  { maxElevationM = null, durationMs = 3000 } = {},
+) {
+  const camera = resolveOverviewCameraOptions(map, bounds, { maxElevationM });
+  if (!camera) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    map.once?.('moveend', finish);
+    map.flyTo({
+      ...camera,
+      duration: durationMs,
+      easing: (value) => 1 - Math.pow(1 - value, 2),
+      essential: true,
+    });
+    window.setTimeout(finish, durationMs + 120);
+  });
 }
 
 import {
