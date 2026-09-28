@@ -40,6 +40,7 @@ export function createAnimator(map, ui, {
   getCameraDocument = () => null,
   getTrackStyle = () => null,
   getCinematicIntensity = () => 0.65,
+  getFollowBehindZoomLevel = () => 33,
 } = {}) {
   const renderer = createMapPlaybackRenderer(map);
   const probe = createPlaybackProbe({
@@ -233,7 +234,11 @@ export function createAnimator(map, ui, {
       const progress = route.totalDistance > 0
         ? animDistance / route.totalDistance
         : 0;
-      const pose = getTrailReplayCameraPose(route, progress);
+      const pose = getTrailReplayCameraPose(
+        route,
+        progress,
+        getFollowBehindZoomLevel?.() ?? 33,
+      );
       const shot = cameraPoseToShot(pose);
 
       if (shot) {
@@ -602,6 +607,7 @@ export function createAnimator(map, ui, {
       total: frameState.hud.total,
       speed: frameState.hud.speed,
       elevation: frameState.hud.elevation,
+      elevationGain: frameState.hud.elevationGain,
       progress: frameState.hud.progress,
       duration: frameState.hud.duration,
       durationSec,
@@ -637,7 +643,11 @@ export function createAnimator(map, ui, {
   function focusStart(durationMs = INTRO_DURATION_MS) {
     if (!route) return Promise.resolve(false);
 
-    const pose = getTrailReplayCameraPose(route, 0);
+    const pose = getTrailReplayCameraPose(
+      route,
+      0,
+      getFollowBehindZoomLevel?.() ?? 33,
+    );
     if (!pose) return Promise.resolve(false);
 
     const generation = ++transitionGeneration;
@@ -1000,6 +1010,18 @@ export function createAnimator(map, ui, {
       return cameraState.shot;
     },
     getDuration,
+    getElevationProfile: () => route?.elevationProfile?.() || [],
+    refreshCamera() {
+      if (!route) return;
+      resetPlaybackCameraGuards();
+      const frameState = getCurrentFrameState();
+      applyCameraFrame(
+        map,
+        resolveCameraFrameForView(frameState, { continuous: false }),
+        { continuous: false },
+      );
+      refreshProgressLayers(frameState, true);
+    },
     getSpeed: () => speedMul,
     getPlaybackState() {
       return {
