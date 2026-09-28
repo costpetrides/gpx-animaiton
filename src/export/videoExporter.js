@@ -121,7 +121,8 @@ export function createVideoExporter(deps) {
       if (signal.aborted) throw new Error('export_aborted');
       const t = frame / quality.fps;
       const pct = duration > 0 ? (t / duration) * 1000 : 0;
-      animator.scrubPreview(pct);
+      if (animator.renderExportProgress) animator.renderExportProgress(pct);
+      else animator.scrubPreview(pct);
       map.triggerRepaint?.();
       await waitForMapRender(map, signal);
       drawCompositeFrame();
@@ -253,7 +254,7 @@ function drawFilmStats(ctx, width, height) {
     ['DISTANCE', document.getElementById('live-distance')?.textContent || '—'],
     ['GAIN', document.getElementById('live-gain')?.textContent || '—'],
     ['ALTITUDE', document.getElementById('live-elevation')?.textContent || '—'],
-    ['PROGRESS', document.getElementById('live-progress')?.textContent || '0%'],
+    ['GPX TIME', document.getElementById('live-time')?.textContent || '00:00'],
   ];
 
   const scale = width / Math.max(1, document.getElementById('map')?.clientWidth || width);
