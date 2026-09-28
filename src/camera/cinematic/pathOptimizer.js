@@ -130,7 +130,37 @@ export function buildCompositionCandidates(baseShot, sample, context = {}, optio
 }
 
 export function buildVisibilityCandidates(baseShot, sample) {
-  return buildCompositionCandidates(baseShot, sample, {});
+  const trailBearing = sample?.bearing ?? baseShot.bearingDeg ?? 0;
+  const baseOrbit = Math.max(28, Math.abs(baseShot.orbitDeg ?? 48));
+  const out = [];
+
+  // Visibility escape candidates deliberately fan left/right around the route.
+  // Prefer changing viewpoint before raising altitude or zooming out.
+  const signedOrbits = [
+    baseOrbit,
+    -baseOrbit,
+    72,
+    -72,
+    96,
+    -96,
+    118,
+    -118,
+  ];
+
+  for (const orbit of signedOrbits) {
+    const lookBearing = normalizeBearing(trailBearing + orbit);
+    out.push({
+      ...baseShot,
+      bearingDeg: lookBearing,
+      orbitDeg: Math.abs(orbit),
+      orbitSide: orbit >= 0 ? 1 : -1,
+      // Keep framing close while escaping behind terrain.
+      zoom: clamp(baseShot.zoom ?? 14.2, 13.4, 15.4),
+      altitudeM: clamp(baseShot.altitudeM ?? 140, 90, 320),
+    });
+  }
+
+  return out;
 }
 
 export function createCameraPathOptimizer() {
