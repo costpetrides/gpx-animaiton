@@ -64,7 +64,6 @@ export function createVideoExporter(deps) {
     });
 
     onStatus?.('Rendering frames…');
-    recorder.start(100);
 
     const frameInterval = 1000 / quality.fps;
     const totalFrames = Math.ceil(duration * quality.fps);
@@ -77,7 +76,10 @@ export function createVideoExporter(deps) {
     animator.reset();
     animator.showOverview?.();
     await waitForMapRender(map, signal);
-    await waitMs(200, signal);
+    await waitMs(120, signal);
+
+    // Start capture only after the panoramic opening frame is fully settled.
+    recorder.start(100);
 
     onStatus?.('Rendering cinematic intro…');
     await animator.focusStart?.(introMs);
