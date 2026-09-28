@@ -6,11 +6,16 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import { parseGPX, formatDistance, formatDuration, formatElevation } from './gpx.js';
-import { DEFAULT_MAP_STYLE_ID, getMapStyleUrl } from './mapStyles.js';
+import {
+  DEFAULT_MAP_STYLE_ID,
+  getMapStyleUrl,
+  resolveMapStyle,
+} from './mapStyles.js';
 import {
   applyCinematicPresentation,
   attributionControlOptions,
   collapseMapAttribution,
+  setMapStyle,
   syncMap3dGestures,
 } from './mapLibreShared.js';
 import { createAnimator } from './animator.js';
@@ -74,6 +79,7 @@ const btnPlay = document.getElementById('btn-play');
 const btnReset = document.getElementById('btn-skip-start');
 const btnFullscreen = document.getElementById('btn-fullscreen');
 const btnExport = document.getElementById('btn-export-video');
+const mapStyleSelect = document.getElementById('map-style-select');
 const speedSelect = document.getElementById('speed-select');
 const cameraModeSelect = document.getElementById('camera-mode');
 const cameraModeHint = document.getElementById('camera-mode-hint');
@@ -345,6 +351,13 @@ function renderProjectState() {
     shell.updateProject({ name: '—', length: '—', gain: '—', duration: '—' });
   }
 
+  const mapStyleKey = resolveMapStyle(
+    getProjectState().document.project.map?.styleKey,
+  ).id;
+  if (mapStyleSelect && mapStyleSelect.value !== mapStyleKey) {
+    mapStyleSelect.value = mapStyleKey;
+  }
+
   if (speedSelect && String(playback.speed) !== speedSelect.value) {
     speedSelect.value = String(playback.speed);
   }
@@ -518,6 +531,48 @@ timeline.addEventListener('change', () => {
   const value = Number(timeline.value);
   animator.scrubCommit(value);
   userScrubbing = false;
+});
+
+mapStyleSelect?.addEventListener('change', () => {
+  const nextStyle = resolveMapStyle(mapStyleSelect.value);
+  const currentStyle = resolveMapStyle(
+    getProjectState().document.project.map?.styleKey,
+  );
+  if (nextStyle.id === currentStyle.id) return;
+
+  const wasPlaying = animator.isPlaying();
+  if (wasPlaying) animator.pause();
+
+  store.dispatch({
+    type: 'project/set-map-style',
+    payload: { styleKey: nextStyle.id },
+  });
+
+  mapStyleSelect.disabled = true;
+  setPlaybackControlsEnabled(false);
+  updateExportEnabled();
+  shell.setStatus(`Loading ${nextStyle.label} map…`);
+
+  setMapStyle(map, nextStyle.styleUrl, () => {
+    try {
+      // setStyle removes every custom source/layer. Rebuild our film stack
+      // only after the new OpenFreeMap style is fully loaded.
+      animator.addLayers?.();
+      enableCinematic3d();
+      animator.refreshCamera?.();
+      scheduleCinematicMapLook();
+
+      if (getRouteDocument()) {
+        animator.reprepare?.('style');
+      } else {
+        shell.setStatus('Drop a GPX to create a cinematic trail film');
+      }
+    } finally {
+      mapStyleSelect.disabled = false;
+      renderProjectState();
+      updateExportEnabled();
+    }
+  });
 });
 
 speedSelect.addEventListener('change', () => {
