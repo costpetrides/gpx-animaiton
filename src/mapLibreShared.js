@@ -342,7 +342,9 @@ export function syncMap3dGestures(map, enabled) {
 }
 
 /**
- * Film-mode map presentation: hide labels / mute roads so the trail dominates.
+ * Film-mode map presentation: keep road/street names, hide all other map
+ * symbols (POIs, bus stops, transit/station icons and labels), and mute the
+ * road geometry so the trail remains dominant.
  */
 export function applyCinematicPresentation(map, {
   hideLabels = true,
@@ -365,7 +367,19 @@ export function applyCinematicPresentation(map, {
 
     try {
       if (hideLabels && layer.type === 'symbol') {
-        map.setLayoutProperty(id, 'visibility', 'none');
+        const sourceLayer = String(layer['source-layer'] || '').toLowerCase();
+        const normalizedId = String(id).toLowerCase();
+
+        // OpenMapTiles/OpenFreeMap road-name symbols normally come from
+        // transportation_name. Keep those, plus defensively named road/street
+        // label layers. Everything else (POI/transit/bus/station/place icons
+        // and labels) stays hidden.
+        const isRoadLabel =
+          sourceLayer === 'transportation_name' ||
+          sourceLayer.includes('transportation_name') ||
+          /road|street|highway|motorway|trunk|primary|secondary|tertiary|residential|service/.test(normalizedId);
+
+        map.setLayoutProperty(id, 'visibility', isRoadLabel ? 'visible' : 'none');
         continue;
       }
 
