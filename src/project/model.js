@@ -109,6 +109,9 @@ export function createEmptyProjectDocument() {
       },
       playback: {
         speed: 1,
+        cameraMode: 'cinematic',
+        // TrailReplay semantics: 0 = stable/cinematic, 1 = reactive.
+        cameraStability: 0.3,
         followBehindZoomLevel: 33,
         // Balanced prefetch: load corridor terrain before Play (cinematic quality).
         prepareQuality: 'balanced',
