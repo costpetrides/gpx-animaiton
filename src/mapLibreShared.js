@@ -92,6 +92,9 @@ export const TERRAIN_SOURCE_ID = 'pe-terrain';
 export const HILLSHADE_LAYER_ID = 'pe-hillshade';
 export const BUILDINGS_3D_LAYER_ID = 'pe-buildings-3d';
 
+// Cinematic baseline: buildings are intentionally disabled globally.
+const BUILDINGS_ENABLED = false;
+
 const MAPTERHORN_TILES = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp';
 const MAPTERHORN_ATTRIBUTION =
   '<a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener">© Mapterhorn</a>';
@@ -188,9 +191,10 @@ export function applyMap3dMode(map, enabled, options = {}) {
     pitch = 58,
     bearing,
     exaggeration = 1.6,
-    buildings = true,
+    buildings: buildingsRequested = true,
     animate = true,
   } = options;
+  const buildings = BUILDINGS_ENABLED && buildingsRequested;
 
   ensureTerrainSource(map);
 
@@ -272,7 +276,8 @@ export function applyMap3dMode(map, enabled, options = {}) {
         else map.addLayer(buildingLayer);
       }
     } else {
-      setStyleBuildingFillsVisible(map, true);
+      // Buildings are off: hide flat basemap building fills too.
+      setStyleBuildingFillsVisible(map, false);
       if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.removeLayer(BUILDINGS_3D_LAYER_ID);
     }
     return;
@@ -290,7 +295,7 @@ export function applyMap3dMode(map, enabled, options = {}) {
   map.setTerrain(null);
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.removeLayer(BUILDINGS_3D_LAYER_ID);
   if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
-  setStyleBuildingFillsVisible(map, true);
+  setStyleBuildingFillsVisible(map, false);
   if (animate) {
     map.easeTo({ pitch: 0, bearing: map.getBearing(), duration: 450 });
   }
