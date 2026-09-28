@@ -7,6 +7,7 @@ import {
   enableTerrain,
   fitOverview,
   flyOverview,
+  queryTerrainElevationAt,
   setMap3dMode,
   stopCameraAnimation,
 } from './camera.js';
@@ -717,15 +718,32 @@ export function createAnimator(map, ui, {
       };
 
       map.once?.('moveend', finish);
-      map.flyTo({
+      const startTerrainElevation = queryTerrainElevationAt(
+        map,
+        pose.center.lng,
+        pose.center.lat,
+        pose.center.ele,
+      );
+
+      const introOptions = {
         center: [pose.center.lng, pose.center.lat],
         zoom: pose.zoom,
         pitch: pose.pitch,
         bearing: pose.bearing,
         duration: durationMs,
+        // Same choice as TrailReplay: linear arrival prevents the camera from
+        // visually arriving early and then pausing before route movement.
         easing: (value) => value,
         essential: true,
-      });
+      };
+
+      // Interpolate the look-at elevation with the rest of the intro. This is
+      // deliberately terrain elevation, not a synthetic camera-height value.
+      if (Number.isFinite(startTerrainElevation)) {
+        introOptions.elevation = startTerrainElevation;
+      }
+
+      map.flyTo(introOptions);
       window.setTimeout(finish, durationMs + 120);
     });
   }
