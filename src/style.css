@@ -462,3 +462,12 @@ select {
   height: 100%;
   filter: drop-shadow(0 2px 8px rgba(0,0,0,0.55));
 }
+
+
+.range-end-labels {
+  display: flex;
+  justify-content: space-between;
+  margin: -4px 0 12px;
+  color: var(--text-3);
+  font-size: 10px;
+}
