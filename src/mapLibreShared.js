@@ -174,8 +174,11 @@ function ensureHillshade(map) {
 }
 
 /**
- * Enable/disable 3D terrain + hillshade on the current
- * basemap. Does not change the map style — call after any style load/switch.
+ * Enable/disable 3D terrain on the current basemap.
+ *
+ * TrailReplay keeps hillshade as an optional presentation layer rather than
+ * forcing it over every basemap. Do the same here so OpenFreeMap vector detail
+ * stays crisp while the surface is still terrain-draped.
  * @param {import('maplibre-gl').Map} map
  * @param {boolean} enabled
  * @param {{ pitch?: number, bearing?: number, exaggeration?: number, buildings?: boolean, animate?: boolean }} [options]
@@ -191,7 +194,7 @@ export function applyMap3dMode(map, enabled, options = {}) {
   const {
     pitch = 58,
     bearing,
-    exaggeration = 1.6,
+    exaggeration = 1.5,
     buildings: buildingsRequested = true,
     animate = true,
   } = options;
@@ -208,7 +211,12 @@ export function applyMap3dMode(map, enabled, options = {}) {
       // Older MapLibre builds may not expose these helpers the same way.
     }
 
-    ensureHillshade(map);
+    // Do not force hillshade over Outdoor / Positron / Dark.
+    // The reference TrailReplay setup treats hillshade as a separate optional
+    // layer; automatic hillshade was washing out fine OpenFreeMap vector detail.
+    if (map.getLayer(HILLSHADE_LAYER_ID)) {
+      map.removeLayer(HILLSHADE_LAYER_ID);
+    }
     map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration });
     try {
       map.setCenterClampedToGround?.(false);
