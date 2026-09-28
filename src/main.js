@@ -29,10 +29,10 @@ import { createStudioKernel } from './studio/kernel.js';
 import { createDefaultCameraRig } from './camera/rig.js';
 import { createElevationChart } from './elevationChart.js';
 import {
-  FOLLOW_BEHIND_STOP_LEVELS,
   getFollowBehindLevelForStopIndex,
   getFollowBehindStopIndexForLevel,
   getSuggestedFollowBehindZoomLevel,
+  normalizeTrailReplayCameraMode,
 } from './camera/trailReplayPlan.js';
 
 const store = createStudioStore();
@@ -75,6 +75,12 @@ const btnReset = document.getElementById('btn-skip-start');
 const btnFullscreen = document.getElementById('btn-fullscreen');
 const btnExport = document.getElementById('btn-export-video');
 const speedSelect = document.getElementById('speed-select');
+const cameraModeSelect = document.getElementById('camera-mode');
+const cameraModeHint = document.getElementById('camera-mode-hint');
+const cameraStability = document.getElementById('camera-stability');
+const cameraStabilityLabel = document.getElementById('camera-stability-label');
+const cameraStabilityGroup = document.getElementById('camera-stability-group');
+const followDistanceGroup = document.getElementById('follow-distance-group');
 const followDistance = document.getElementById('follow-distance');
 const followDistanceLabel = document.getElementById('follow-distance-label');
 const filmStats = document.getElementById('film-stats');
@@ -247,7 +253,7 @@ const animator = createAnimator(map, {
     setLive('live-distance', hud.distance);
     setLive('live-gain', hud.elevationGain);
     setLive('live-elevation', hud.elevation);
-    setLive('live-progress', Number.isFinite(hud.progress) ? `${Math.round(hud.progress)}%` : '0%');
+    setLive('live-time', hud.recordedTime || '00:00');
 
     const routeDoc = getRouteDocument();
     if (routeDoc && Number.isFinite(total)) {
@@ -268,6 +274,12 @@ const animator = createAnimator(map, {
   getTrackStyle: () => getProjectState().document.project.track,
   getFollowBehindZoomLevel: () => (
     selectPlaybackConfig(getProjectState()).followBehindZoomLevel ?? 33
+  ),
+  getCameraMode: () => (
+    selectPlaybackConfig(getProjectState()).cameraMode || 'cinematic'
+  ),
+  getCameraStability: () => (
+    selectPlaybackConfig(getProjectState()).cameraStability ?? 0.3
   ),
 });
 
@@ -345,6 +357,47 @@ function renderProjectState() {
     if (followDistanceLabel) {
       const labels = ['Far', 'Far+', 'Medium−', 'Medium', 'Medium+', 'Close', 'Close+', 'Very close'];
       followDistanceLabel.textContent = labels[stopIndex] || 'Medium';
+    }
+  }
+
+  const cameraMode = normalizeTrailReplayCameraMode(playback.cameraMode);
+  if (cameraModeSelect && cameraModeSelect.value !== cameraMode) {
+    cameraModeSelect.value = cameraMode;
+  }
+
+  if (cameraModeHint) {
+    const hints = {
+      cinematic: 'Smoothest: uses the known route ahead and behind the marker to glide through switchbacks.',
+      'follow-behind': 'Classic chase camera: follows route direction with TrailReplay smoothing.',
+      follow: 'Simple top-down follow camera with a fixed north-up view.',
+      overview: 'Keeps the whole route visible while the route animation progresses.',
+    };
+    cameraModeHint.textContent = hints[cameraMode];
+  }
+
+  if (followDistanceGroup) {
+    followDistanceGroup.classList.toggle(
+      'hidden',
+      cameraMode !== 'follow-behind' && cameraMode !== 'cinematic',
+    );
+  }
+
+  if (cameraStabilityGroup) {
+    cameraStabilityGroup.classList.toggle('hidden', cameraMode === 'overview');
+  }
+
+  if (cameraStability) {
+    const stability = Number.isFinite(playback.cameraStability)
+      ? playback.cameraStability
+      : 0.3;
+    cameraStability.value = String(stability);
+    if (cameraStabilityLabel) {
+      cameraStabilityLabel.textContent =
+        stability <= 0.2 ? 'Very stable' :
+        stability <= 0.4 ? 'Stable' :
+        stability <= 0.65 ? 'Balanced' :
+        stability <= 0.85 ? 'Reactive' :
+        'Very reactive';
     }
   }
 
@@ -471,6 +524,26 @@ speedSelect.addEventListener('change', () => {
   const speed = Number(speedSelect.value) || 1;
   store.dispatch({ type: 'project/set-playback-speed', payload: { speed } });
   animator.setSpeed(speed);
+  renderProjectState();
+});
+
+cameraModeSelect?.addEventListener('change', () => {
+  const mode = normalizeTrailReplayCameraMode(cameraModeSelect.value);
+  store.dispatch({
+    type: 'project/set-playback-camera-mode',
+    payload: { mode },
+  });
+  animator.refreshCamera?.();
+  renderProjectState();
+});
+
+cameraStability?.addEventListener('input', () => {
+  const value = Math.max(0, Math.min(1, Number(cameraStability.value) || 0));
+  store.dispatch({
+    type: 'project/set-camera-stability',
+    payload: { value },
+  });
+  animator.refreshCamera?.();
   renderProjectState();
 });
 
