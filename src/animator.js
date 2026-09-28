@@ -7,7 +7,6 @@ import {
   enableTerrain,
   fitOverview,
   flyOverview,
-  queryTerrainElevationAt,
   setMap3dMode,
   stopCameraAnimation,
 } from './camera.js';
@@ -79,6 +78,7 @@ export function createAnimator(map, ui, {
   let terrainDegraded = false;
   let loopPlayback = false;
   let transitionGeneration = 0;
+  let introCameraSeeded = false;
   const trailReplayMotion = createTrailReplayMotionState();
   const INTRO_DURATION_MS = 1500;
   const OUTRO_DURATION_MS = 3000;
@@ -221,6 +221,7 @@ export function createAnimator(map, ui, {
   }
 
   function resetPlaybackCameraGuards() {
+    introCameraSeeded = false;
     if (cameraState?.terrainGuard) {
       cameraState.terrainGuard.lastEnvelopeM = null;
       cameraState.terrainGuard.smoothedElevationM = null;
@@ -664,7 +665,9 @@ export function createAnimator(map, ui, {
     if (!route || !playbackPreparer.isArmed()) return;
 
     lastAppliedCadenceTick = -1;
-    if (animDistance < 1) resetPlaybackCameraGuards();
+    if (animDistance < 1 && !introCameraSeeded) {
+      resetPlaybackCameraGuards();
+    }
     syncTerrainHealth(getCurrentFrameState());
     playing = true;
     lastFrame = 0;
@@ -685,17 +688,35 @@ export function createAnimator(map, ui, {
       return Promise.resolve(true);
     }
 
+    // Match TrailReplay exactly for the default Cinematic case:
+    // without authored cinematic keyframes, the intro flies to the first
+    // FOLLOW-BEHIND playback pose. Cinematic smoothing then takes over once
+    // route playback begins.
+    const introCameraMode =
+      cameraMode === 'cinematic' ? 'follow-behind' : cameraMode;
+
     const pose = getTrailReplayCameraPose(
       route,
       0,
       getFollowBehindZoomLevel?.() ?? 33,
       {
-        cameraMode,
+        cameraMode: introCameraMode,
         cameraStability: getCameraStability?.() ?? 0.3,
         videoDurationSeconds: getDuration(),
       },
     );
     if (!pose) return Promise.resolve(false);
+
+    // TrailReplay primes its camera refs from the intro pose so the first
+    // playback update continues from the exact pose the fly-in reached.
+    resetTrailReplayMotionState(trailReplayMotion);
+    trailReplayMotion.lastTimeSec = 0;
+    trailReplayMotion.center = { ...pose.center };
+    trailReplayMotion.bearing = pose.bearing;
+    trailReplayMotion.zoom = pose.zoom;
+    trailReplayMotion.zoomTarget = pose.zoom;
+    trailReplayMotion.pitch = pose.pitch;
+    introCameraSeeded = true;
 
     const generation = ++transitionGeneration;
     return new Promise((resolve) => {
@@ -704,46 +725,28 @@ export function createAnimator(map, ui, {
         if (settled) return;
         settled = true;
         if (generation !== transitionGeneration) {
+          introCameraSeeded = false;
           resolve(false);
           return;
         }
 
-        const frameState = getCurrentFrameState();
-        applyCameraFrame(
-          map,
-          resolveCameraFrameForView(frameState, { continuous: false }),
-          { continuous: false },
-        );
+        // Do not snap through resolveCameraFrameForView here. TrailReplay lets
+        // flyTo finish on the intro pose, then playback owns the next frame.
         resolve(true);
       };
 
       map.once?.('moveend', finish);
-      const startTerrainElevation = queryTerrainElevationAt(
-        map,
-        pose.center.lng,
-        pose.center.lat,
-        pose.center.ele,
-      );
-
-      const introOptions = {
+      map.flyTo({
         center: [pose.center.lng, pose.center.lat],
         zoom: pose.zoom,
         pitch: pose.pitch,
         bearing: pose.bearing,
         duration: durationMs,
-        // Same choice as TrailReplay: linear arrival prevents the camera from
-        // visually arriving early and then pausing before route movement.
+        // TrailReplay uses a linear fly-in so arrival happens exactly when
+        // route playback begins, rather than visually arriving early.
         easing: (value) => value,
         essential: true,
-      };
-
-      // Interpolate the look-at elevation with the rest of the intro. This is
-      // deliberately terrain elevation, not a synthetic camera-height value.
-      if (Number.isFinite(startTerrainElevation)) {
-        introOptions.elevation = startTerrainElevation;
-      }
-
-      map.flyTo(introOptions);
+      });
       window.setTimeout(finish, durationMs + 120);
     });
   }
@@ -819,6 +822,7 @@ export function createAnimator(map, ui, {
         dt,
         speedMul,
       );
+      introCameraSeeded = false;
       animTime = nextFrame.animTime;
       animDistance = nextFrame.animDistance;
       currentSpeed = nextFrame.currentSpeed;
@@ -909,6 +913,7 @@ export function createAnimator(map, ui, {
     },
     pause() {
       transitionGeneration += 1;
+      introCameraSeeded = false;
       playing = false;
       lastFrame = 0;
       playbackClock = null;
