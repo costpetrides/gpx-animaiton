@@ -388,15 +388,6 @@ export function createMapPlaybackRenderer(map) {
     renderFrameState(frameState);
   }
 
-  function resetStyleState() {
-    // map.setStyle() destroys all custom sources/layers, but the renderer's
-    // in-memory readiness flags survive. Reset them explicitly before
-    // rebuilding on the new basemap.
-    layersReady = false;
-    staticLayersSet = false;
-    lastRouteDoneBucket = -1;
-  }
-
   function resetRouteState() {
     staticLayersSet = false;
     lastRouteDoneBucket = -1;
@@ -472,7 +463,6 @@ export function createMapPlaybackRenderer(map) {
     clear,
     renderFrameState,
     refreshRouteFrameState,
-    resetStyleState,
     resetRouteState,
     resetProgressCache,
     hasPlaybackLayers,
