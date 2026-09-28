@@ -130,7 +130,9 @@ function ensureCinematicMapLook() {
   ).id;
   applyCinematicPresentation(map, {
     hideLabels: true,
-    muteRoads: true,
+    // TrailReplay keeps the selected basemap's own road contrast intact.
+    // Muting road layers to 0.15 made Positron/Outdoor look washed during film.
+    muteRoads: false,
     activeBasemapStyleId,
   });
   cinematicStyleApplied = true;
