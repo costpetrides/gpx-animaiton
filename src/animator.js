@@ -442,7 +442,7 @@ export function createAnimator(map, ui, {
   function getTerrainExaggeration() {
     const current = map.getTerrain?.();
     const fromMap = current?.exaggeration;
-    return Number.isFinite(fromMap) ? fromMap : 1.6;
+    return Number.isFinite(fromMap) ? fromMap : 1.5;
   }
 
   function setMapViewMode(mode) {
@@ -466,7 +466,7 @@ export function createAnimator(map, ui, {
     mapViewMode = next;
     const enabled3d = mapViewMode === '3d';
 
-    // Cinematic logic: 3D = terrain + hillshade; buildings stay permanently off.
+    // Cinematic logic: 3D terrain stays on; hillshade and buildings stay off.
     // animate:false so route camera ownership stays with the animator.
     setMap3dMode(map, enabled3d && !terrainDegraded, {
       pitch: enabled3d ? 58 : 0,
