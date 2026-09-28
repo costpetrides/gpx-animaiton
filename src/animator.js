@@ -194,19 +194,28 @@ export function createAnimator(map, ui, {
     });
   }
 
-  function applyTimelinePosition(value) {
+  function applyTimelinePosition(
+    value,
+    { resetCamera = true, continuous = false } = {},
+  ) {
     const pct = value / 1000;
     setPlaybackState(seekPlaybackProgress(route, pct, speedMul));
     route?.resetTraveledCache?.();
     renderer.resetProgressCache?.();
-    resetPlaybackCameraGuards();
+    if (resetCamera) resetPlaybackCameraGuards();
+
     const frameState = getCurrentFrameState();
     syncMapState(frameState);
-    applyCameraFrame(
-      map,
-      resolveCameraFrameForView(frameState, { continuous: false }),
-      { continuous: false },
-    );
+    refreshProgressLayers(frameState, true);
+
+    if (normalizeTrailReplayCameraMode(getCameraMode?.()) !== 'overview') {
+      applyCameraFrame(
+        map,
+        resolveCameraFrameForView(frameState, { continuous }),
+        { continuous },
+      );
+    }
+
     updateHUD(frameState);
   }
 
@@ -912,12 +921,19 @@ export function createAnimator(map, ui, {
     getOutroDurationMs: () => OUTRO_DURATION_MS,
     scrubPreview(value) {
       if (!route) return;
-      applyTimelinePosition(value);
+      applyTimelinePosition(value, { resetCamera: true, continuous: false });
     },
     scrubCommit(value) {
-      // Frame-accurate seek only — never disarm / re-prepare.
+      // Frame-accurate user seek: settle immediately on the requested pose.
       if (!route) return;
-      applyTimelinePosition(value);
+      applyTimelinePosition(value, { resetCamera: true, continuous: false });
+    },
+    renderExportProgress(value) {
+      // Deterministic export advances in playback-time order. Preserve the
+      // TrailReplay smoothing state across encoded frames instead of treating
+      // every frame like a fresh user scrub.
+      if (!route) return;
+      applyTimelinePosition(value, { resetCamera: false, continuous: true });
     },
     scrub(value) {
       this.scrubCommit(value);
