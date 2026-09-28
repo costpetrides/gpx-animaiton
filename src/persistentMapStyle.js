@@ -1,7 +1,6 @@
 import {
   DEFAULT_MAP_STYLE_ID,
   MAP_STYLE_ORDER,
-  MAP_STYLES,
   resolveMapStyle,
 } from './mapStyles.js';
 
