@@ -109,6 +109,7 @@ export function createEmptyProjectDocument() {
       },
       playback: {
         speed: 1,
+        followBehindZoomLevel: 33,
         // Balanced prefetch: load corridor terrain before Play (cinematic quality).
         prepareQuality: 'balanced',
       },
