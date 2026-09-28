@@ -14,17 +14,12 @@ export {
 };
 
 /**
- * Animation length at 1× — always distance-paced for cinematic video.
- * GPS timestamps no longer dictate flythrough length (that made short
- * recordings scream through the trail in seconds).
+ * Animation length at 1× — fixed at 30 seconds for every valid route.
+ * GPX timestamps, activity type, and route distance never change film pacing.
  */
 export function getBaseAnimationDuration(route) {
   if (!route?.totalDistance) return MIN_ANIMATION_DURATION_SEC;
-  const byDistance = route.totalDistance / CINEMATIC_GROUND_MPS;
-  return Math.max(
-    MIN_ANIMATION_DURATION_SEC,
-    Math.min(MAX_ANIMATION_DURATION_SEC, byDistance),
-  );
+  return MIN_ANIMATION_DURATION_SEC;
 }
 
 export function getPlaybackDuration(route, speedMul = 1) {
