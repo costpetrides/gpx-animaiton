@@ -165,10 +165,10 @@ export function createMapPlaybackRenderer(map) {
         type: 'line',
         source: 'route-done',
         paint: {
-          'line-color': '#0f9ad1',
-          'line-width': 12,
-          'line-opacity': 0.4,
-          'line-blur': 3,
+          'line-color': '#0b6f99',
+          'line-width': 9,
+          'line-opacity': 0.22,
+          'line-blur': 2,
         },
       });
     }
@@ -179,17 +179,17 @@ export function createMapPlaybackRenderer(map) {
         source: 'route-done',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-width': 6,
+          'line-width': 5,
           'line-gradient': [
             'interpolate',
             ['linear'],
             ['line-progress'],
             0,
-            '#0369a1',
+            '#075985',
             0.7,
-            '#0f9ad1',
+            '#0b7aa5',
             1,
-            '#7dd3fc',
+            '#38a7c7',
           ],
         },
       });
