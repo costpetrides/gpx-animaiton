@@ -173,6 +173,55 @@ function reduce(state, action) {
       };
     }
 
+    case 'project/set-playback-camera-mode': {
+      const allowed = ['overview', 'follow', 'follow-behind', 'cinematic'];
+      const mode = allowed.includes(action.payload.mode)
+        ? action.payload.mode
+        : 'cinematic';
+      return {
+        ...state,
+        document: {
+          ...state.document,
+          project: stampProject({
+            ...state.document.project,
+            playback: {
+              ...state.document.project.playback,
+              cameraMode: mode,
+            },
+          }),
+        },
+        editor: {
+          ...state.editor,
+          dirty: true,
+          lastAction: 'project/set-playback-camera-mode',
+        },
+      };
+    }
+
+    case 'project/set-camera-stability': {
+      return {
+        ...state,
+        document: {
+          ...state.document,
+          project: stampProject({
+            ...state.document.project,
+            playback: {
+              ...state.document.project.playback,
+              cameraStability: Math.max(
+                0,
+                Math.min(1, Number(action.payload.value) || 0),
+              ),
+            },
+          }),
+        },
+        editor: {
+          ...state.editor,
+          dirty: true,
+          lastAction: 'project/set-camera-stability',
+        },
+      };
+    }
+
     case 'project/set-prepare-quality': {
       return {
         ...state,
