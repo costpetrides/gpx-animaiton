@@ -68,10 +68,22 @@ export function createVideoExporter(deps) {
 
     const frameInterval = 1000 / quality.fps;
     const totalFrames = Math.ceil(duration * quality.fps);
+    const introMs = animator.getIntroDurationMs?.() ?? 1500;
+    const outroMs = animator.getOutroDurationMs?.() ?? 3000;
+    const totalFilmDuration = duration + introMs / 1000 + outroMs / 1000;
+
+    // Export the same sequence the user previews:
+    // panoramic overview -> focus fly-in -> route replay -> panoramic outro.
     animator.reset();
+    animator.showOverview?.();
     await waitForMapRender(map, signal);
     await waitMs(200, signal);
 
+    onStatus?.('Rendering cinematic intro…');
+    await animator.focusStart?.(introMs);
+    if (signal.aborted) throw new Error('export_aborted');
+
+    onStatus?.('Rendering route…');
     for (let frame = 0; frame < totalFrames; frame++) {
       if (signal.aborted) throw new Error('export_aborted');
       const t = frame / quality.fps;
@@ -83,8 +95,17 @@ export function createVideoExporter(deps) {
       if (frame % 8 === 0) {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
-      onProgress?.({ frame, totalFrames, time: t, duration });
+      onProgress?.({
+        frame,
+        totalFrames,
+        time: t + introMs / 1000,
+        duration: totalFilmDuration,
+      });
     }
+
+    onStatus?.('Rendering cinematic outro…');
+    await animator.playOutro?.(outroMs);
+    if (signal.aborted) throw new Error('export_aborted');
 
     recorder.stop();
     onStatus?.('Finalizing video…');
