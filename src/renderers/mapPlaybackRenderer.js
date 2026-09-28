@@ -101,59 +101,208 @@ export function createMapPlaybackRenderer(map) {
   const ROUTE_DONE_BUCKET_M = 2;
 
   function addLayers() {
-    if (!map.isStyleLoaded()) return;
-    if (map.getSource('route') && map.getSource('actor')) {
-      layersReady = true;
-      staticLayersSet = false;
-      return;
+    if (!map.isStyleLoaded()) return false;
+
+    // TrailReplay-style idempotent setup: ensure every source/layer
+    // independently. A style swap can leave a partially-rebuilt graph if one
+    // operation fails; never let one existing source make the whole rebuild
+    // abort on a duplicate.
+    if (!map.getSource('route')) {
+      map.addSource('route', {
+        type: 'geojson',
+        lineMetrics: true,
+        data: emptyFC(),
+      });
+    }
+    if (!map.getSource('route-done')) {
+      map.addSource('route-done', {
+        type: 'geojson',
+        lineMetrics: true,
+        data: emptyFC(),
+      });
+    }
+    if (!map.getSource('markers')) {
+      map.addSource('markers', {
+        type: 'geojson',
+        data: emptyFC(),
+      });
+    }
+    if (!map.getSource('actor')) {
+      map.addSource('actor', {
+        type: 'geojson',
+        data: emptyPointFeatureCollection(),
+      });
     }
 
-    map.addSource('route', { type: 'geojson', lineMetrics: true, data: emptyFC() });
-    map.addSource('route-done', { type: 'geojson', lineMetrics: true, data: emptyFC() });
-    map.addSource('markers', { type: 'geojson', data: emptyFC() });
-    map.addSource('actor', { type: 'geojson', data: emptyPointFeatureCollection() });
+    if (!map.getLayer('route-glow')) {
+      map.addLayer({
+        id: 'route-glow',
+        type: 'line',
+        source: 'route',
+        paint: {
+          'line-color': '#94a3b8',
+          'line-width': 10,
+          'line-opacity': 0.15,
+          'line-blur': 4,
+        },
+      });
+    }
+    if (!map.getLayer('route-full')) {
+      map.addLayer({
+        id: 'route-full',
+        type: 'line',
+        source: 'route',
+        paint: {
+          'line-color': '#cbd5e1',
+          'line-width': 3,
+          'line-opacity': 0.4,
+        },
+      });
+    }
+    if (!map.getLayer('route-done-glow')) {
+      map.addLayer({
+        id: 'route-done-glow',
+        type: 'line',
+        source: 'route-done',
+        paint: {
+          'line-color': '#0f9ad1',
+          'line-width': 12,
+          'line-opacity': 0.4,
+          'line-blur': 3,
+        },
+      });
+    }
+    if (!map.getLayer('route-done')) {
+      map.addLayer({
+        id: 'route-done',
+        type: 'line',
+        source: 'route-done',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-width': 6,
+          'line-gradient': [
+            'interpolate',
+            ['linear'],
+            ['line-progress'],
+            0,
+            '#0369a1',
+            0.7,
+            '#0f9ad1',
+            1,
+            '#7dd3fc',
+          ],
+        },
+      });
+    }
 
-    map.addLayer({
-      id: 'route-glow',
-      type: 'line',
-      source: 'route',
-      paint: { 'line-color': '#94a3b8', 'line-width': 10, 'line-opacity': 0.15, 'line-blur': 4 },
-    });
-    map.addLayer({
-      id: 'route-full',
-      type: 'line',
-      source: 'route',
-      paint: { 'line-color': '#cbd5e1', 'line-width': 3, 'line-opacity': 0.4 },
-    });
-    map.addLayer({
-      id: 'route-done-glow',
-      type: 'line',
-      source: 'route-done',
-      paint: { 'line-color': '#0f9ad1', 'line-width': 12, 'line-opacity': 0.4, 'line-blur': 3 },
-    });
-    map.addLayer({
-      id: 'route-done',
-      type: 'line',
-      source: 'route-done',
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: {
-        'line-width': 6,
-        'line-gradient': [
-          'interpolate', ['linear'], ['line-progress'],
-          0, '#0369a1',
-          0.7, '#0f9ad1',
-          1, '#7dd3fc',
-        ],
-      },
-    });
+    if (!map.getLayer('marker-start-glow') || !map.getLayer('marker-start-core')) {
+      if (!map.getLayer('marker-start-glow')) {
+        const palette = MARKER_PALETTE.start;
+        map.addLayer({
+          id: 'marker-start-glow',
+          type: 'circle',
+          source: 'markers',
+          filter: ['==', ['get', 't'], 'start'],
+          paint: {
+            'circle-radius': 18,
+            'circle-color': palette.glow,
+            'circle-opacity': 0.24,
+            'circle-blur': 0.85,
+          },
+        });
+      }
+      if (!map.getLayer('marker-start-core')) {
+        const palette = MARKER_PALETTE.start;
+        map.addLayer({
+          id: 'marker-start-core',
+          type: 'circle',
+          source: 'markers',
+          filter: ['==', ['get', 't'], 'start'],
+          paint: {
+            'circle-radius': 5,
+            'circle-color': palette.core,
+            'circle-stroke-width': 1.75,
+            'circle-stroke-color': palette.coreStroke,
+          },
+        });
+      }
+    }
 
-    addEndpointMarkerLayers(map, 'markers', 'start');
-    addEndpointMarkerLayers(map, 'markers', 'end');
-    addActorMarkerLayers(map, 'actor');
+    if (!map.getLayer('marker-end-glow') || !map.getLayer('marker-end-core')) {
+      if (!map.getLayer('marker-end-glow')) {
+        const palette = MARKER_PALETTE.end;
+        map.addLayer({
+          id: 'marker-end-glow',
+          type: 'circle',
+          source: 'markers',
+          filter: ['==', ['get', 't'], 'end'],
+          paint: {
+            'circle-radius': 18,
+            'circle-color': palette.glow,
+            'circle-opacity': 0.24,
+            'circle-blur': 0.85,
+          },
+        });
+      }
+      if (!map.getLayer('marker-end-core')) {
+        const palette = MARKER_PALETTE.end;
+        map.addLayer({
+          id: 'marker-end-core',
+          type: 'circle',
+          source: 'markers',
+          filter: ['==', ['get', 't'], 'end'],
+          paint: {
+            'circle-radius': 5,
+            'circle-color': palette.core,
+            'circle-stroke-width': 1.75,
+            'circle-stroke-color': palette.coreStroke,
+          },
+        });
+      }
+    }
+
+    if (!map.getLayer('actor-glow')) {
+      const palette = MARKER_PALETTE.actor;
+      map.addLayer({
+        id: 'actor-glow',
+        type: 'circle',
+        source: 'actor',
+        paint: {
+          'circle-radius': 30,
+          'circle-color': palette.glow,
+          'circle-opacity': 0.5,
+          'circle-blur': 0.65,
+        },
+      });
+    }
+    if (!map.getLayer('actor-core')) {
+      const palette = MARKER_PALETTE.actor;
+      map.addLayer({
+        id: 'actor-core',
+        type: 'circle',
+        source: 'actor',
+        paint: {
+          'circle-radius': 8.5,
+          'circle-color': palette.core,
+          'circle-stroke-width': 2.75,
+          'circle-stroke-color': palette.coreStroke,
+        },
+      });
+    }
 
     addTerrainSource(map);
-    layersReady = true;
+
+    layersReady = Boolean(
+      map.getSource('route') &&
+      map.getSource('route-done') &&
+      map.getSource('markers') &&
+      map.getSource('actor') &&
+      map.getLayer('route-full') &&
+      map.getLayer('route-done') &&
+      map.getLayer('actor-core')
+    );
     staticLayersSet = false;
+    return layersReady;
   }
 
   function whenReady(fn) {
