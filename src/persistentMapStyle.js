@@ -41,6 +41,22 @@ async function fetchStyle(styleId) {
   return { config, style };
 }
 
+function isBuildingLayerDefinition(layer) {
+  if (!layer) return false;
+
+  const id = String(layer.id || '').toLowerCase();
+  const sourceLayer = String(layer['source-layer'] || '').toLowerCase();
+  const type = String(layer.type || '').toLowerCase();
+
+  return (
+    type === 'fill-extrusion' ||
+    sourceLayer.includes('building') ||
+    /(^|[-_ ])buildings?($|[-_ ])/i.test(id) ||
+    id.includes('building-') ||
+    id.includes('-building')
+  );
+}
+
 function prefixSourceId(styleId, sourceId) {
   return `basemap-${styleId}-source-${sourceId}`;
 }
@@ -50,7 +66,10 @@ function prefixLayerId(styleId, layerId) {
 }
 
 function cloneLayer(styleId, layer, active) {
-  const originalVisibility = layer.layout?.visibility ?? 'visible';
+  const buildingLayer = isBuildingLayerDefinition(layer);
+  const originalVisibility = buildingLayer
+    ? 'none'
+    : (layer.layout?.visibility ?? 'visible');
   const cloned = structuredClone(layer);
 
   cloned.id = prefixLayerId(styleId, layer.id);
@@ -61,10 +80,13 @@ function cloneLayer(styleId, layer, active) {
     ...(cloned.metadata || {}),
     [META_STYLE_KEY]: styleId,
     [META_ORIGINAL_VISIBILITY]: originalVisibility,
+    'ryodo:building-layer': buildingLayer,
   };
   cloned.layout = {
     ...(cloned.layout || {}),
-    visibility: active ? originalVisibility : 'none',
+    visibility: buildingLayer
+      ? 'none'
+      : (active ? originalVisibility : 'none'),
   };
 
   return cloned;
@@ -148,10 +170,16 @@ export function applyPersistentBasemapPresentation(
     for (const entry of entries) {
       if (!map.getLayer(entry.layerId)) continue;
       try {
+        const layer = map.getLayer(entry.layerId);
+        const buildingLayer = Boolean(
+          layer?.metadata?.['ryodo:building-layer'],
+        );
         map.setLayoutProperty(
           entry.layerId,
           'visibility',
-          active ? entry.originalVisibility : 'none',
+          buildingLayer
+            ? 'none'
+            : (active ? entry.originalVisibility : 'none'),
         );
       } catch {
         // A malformed optional layer must never break the basemap switch.
