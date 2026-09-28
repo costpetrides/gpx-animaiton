@@ -529,13 +529,14 @@ export function enableTerrain(map, exaggeration = 1.5) {
   try {
     ensureTerrainSource(map);
     const current = map.getTerrain?.();
-    if (!current) {
-      map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration });
-      map.setCenterClampedToGround?.(false);
-    } else if (current.source !== TERRAIN_SOURCE_ID) {
+    if (
+      !current ||
+      current.source !== TERRAIN_SOURCE_ID ||
+      Math.abs((current.exaggeration ?? exaggeration) - exaggeration) > 0.001
+    ) {
       map.setTerrain({
         source: TERRAIN_SOURCE_ID,
-        exaggeration: current.exaggeration ?? exaggeration,
+        exaggeration,
       });
       map.setCenterClampedToGround?.(false);
     }
