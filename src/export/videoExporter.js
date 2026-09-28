@@ -171,7 +171,7 @@ async function exportDeterministicMp4({
   const frameDurationMs = 1000 / fps;
   const frameDurationMicros = Math.round(1_000_000 / fps);
 
-  const introFrames = Math.max(1, Math.round((introMs / 1000) * fps));
+  const introFrames = Math.max(0, Math.round((introMs / 1000) * fps));
   const routeFrames = Math.max(1, Math.round(routeDurationSec * fps));
   const outroFrames = Math.max(1, Math.round((outroMs / 1000) * fps));
   const totalFrames = introFrames + routeFrames + outroFrames;
@@ -201,23 +201,11 @@ async function exportDeterministicMp4({
   await waitForMapSettledEnough(map, signal);
   drawCompositeFrame();
 
-  // TrailReplay's intro is still a live MapLibre flyTo in this project.
-  // Capture exactly N frames with fixed output timestamps. Rendering may take
-  // longer than real time, but the resulting MP4 timeline remains exact.
-  onStatus?.('Rendering cinematic intro…');
-  const introAction = Promise.resolve(animator.focusStart?.(introMs));
-  const introStartedAt = performance.now();
-
-  for (let i = 0; i < introFrames; i += 1) {
-    const targetWallMs = introStartedAt + i * frameDurationMs;
-    const remaining = targetWallMs - performance.now();
-    if (remaining > 0) await waitMs(remaining, signal);
-
-    map.triggerRepaint?.();
-    await waitForMapRender(map, signal);
-    await encodeCurrent(i * frameDurationMs);
-  }
-  await introAction;
+  // No animated opening fly-in. Snap from the panorama to the first playback
+  // pose before encoding the route timeline.
+  await animator.focusStart?.(0);
+  map.triggerRepaint?.();
+  await waitForMapRender(map, signal);
 
   onStatus?.('Rendering route…');
   for (let i = 0; i < routeFrames; i += 1) {
@@ -308,13 +296,9 @@ async function exportWebmFallback({
   recorder.start(100);
 
   onStatus?.('Rendering WebM…');
-  await captureRealtimePhase({
-    action: () => animator.focusStart?.(introMs),
-    durationMs: introMs,
-    fps: quality.fps,
-    drawCompositeFrame,
-    signal,
-  });
+  await animator.focusStart?.(0);
+  map.triggerRepaint?.();
+  await waitForMapRender(map, signal);
 
   const totalFrames = Math.ceil(routeDurationSec * quality.fps);
   const frameInterval = 1000 / quality.fps;
