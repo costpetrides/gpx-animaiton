@@ -3,21 +3,6 @@
  * Lives only in gpx-animaiton — Peak Explorer is never modified.
  */
 
-import {
-  DEFAULT_MAP_STYLE_ID,
-  getMapStyle,
-  resolveMapStyle,
-} from './mapStyles.js';
-
-export function getResolvedStyle(styleId = DEFAULT_MAP_STYLE_ID) {
-  const resolvedStyle = resolveMapStyle(styleId);
-  return {
-    resolvedStyle,
-    style: getMapStyle(styleId),
-    styleUrl: resolvedStyle.styleUrl || null,
-  };
-}
-
 /**
  * Run callback once the current style is ready for source/layer mutation.
  * @param {import('maplibre-gl').Map} map
@@ -30,29 +15,6 @@ export function whenStyleReady(map, callback) {
     return;
   }
   map.once('load', callback);
-}
-
-/**
- * Apply an OpenFreeMap vector style URL and invoke onReady after overlays
- * can be attached.
- * @param {import('maplibre-gl').Map} map
- * @param {string} styleUrl
- * @param {() => void} onReady
- */
-export function setMapStyle(map, styleUrl, onReady) {
-  if (!map || !styleUrl) return;
-
-  const handle = () => {
-    onReady?.();
-  };
-
-  map.once('style.load', handle);
-  map.setStyle(styleUrl, { diff: false });
-}
-
-/** @deprecated Prefer setMapStyle — same behavior. */
-export function setVectorStyle(map, styleUrl, onReady) {
-  setMapStyle(map, styleUrl, onReady);
 }
 
 export function attributionControlOptions() {
