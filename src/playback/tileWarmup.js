@@ -160,6 +160,7 @@ export function createReplayTileWarmup({
   let activeBasemapStyleId = initialBasemapStyleId;
   let intervalId = null;
   let poseTimeoutId = null;
+  let poseResolve = null;
   let warming = false;
   let cancelled = false;
   let currentProgress = 0;
@@ -246,17 +247,19 @@ export function createReplayTileWarmup({
 
     const warmPose = (pose) => new Promise((resolve) => {
       let settled = false;
+      let timeoutId = null;
       const finish = () => {
         if (settled) return;
         settled = true;
         visibleMap.off?.('idle', finish);
+        if (timeoutId != null) window.clearTimeout(timeoutId);
         resolve();
       };
 
       visibleMap.jumpTo(toMapCamera(pose));
       visibleMap.once?.('idle', finish);
       const remaining = Math.max(0, deadline - performance.now());
-      window.setTimeout(finish, remaining);
+      timeoutId = window.setTimeout(finish, remaining);
     });
 
     try {
@@ -272,15 +275,18 @@ export function createReplayTileWarmup({
   }
 
   const warmPoseOffscreen = (pose) => new Promise((resolve) => {
-    if (!warmupMap) {
+    if (!warmupMap || cancelled) {
       resolve();
       return;
     }
 
+    poseResolve = resolve;
     warmupMap.jumpTo(toMapCamera(pose));
     poseTimeoutId = window.setTimeout(() => {
       poseTimeoutId = null;
-      resolve();
+      const finish = poseResolve;
+      poseResolve = null;
+      finish?.();
     }, DISCOVERY_RENDER_WINDOW_MS);
   });
 
@@ -322,6 +328,9 @@ export function createReplayTileWarmup({
       window.clearTimeout(poseTimeoutId);
       poseTimeoutId = null;
     }
+    const finishPose = poseResolve;
+    poseResolve = null;
+    finishPose?.();
     if (intervalId != null) {
       window.clearInterval(intervalId);
       intervalId = null;
