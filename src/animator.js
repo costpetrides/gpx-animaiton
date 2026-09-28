@@ -80,7 +80,7 @@ export function createAnimator(map, ui, {
   let transitionGeneration = 0;
   let introCameraSeeded = false;
   const trailReplayMotion = createTrailReplayMotionState();
-  const INTRO_DURATION_MS = 1500;
+  const INTRO_DURATION_MS = 0;
   const OUTRO_DURATION_MS = 3000;
 
   const playbackPreparer = createPlaybackPrepareCoordinator({
@@ -679,7 +679,7 @@ export function createAnimator(map, ui, {
     renderFrameId = requestAnimationFrame(frame);
   }
 
-  function focusStart(durationMs = INTRO_DURATION_MS) {
+  function focusStart() {
     if (!route) return Promise.resolve(false);
 
     const cameraMode = normalizeTrailReplayCameraMode(getCameraMode?.());
@@ -688,67 +688,42 @@ export function createAnimator(map, ui, {
       return Promise.resolve(true);
     }
 
-    // Match TrailReplay exactly for the default Cinematic case:
-    // without authored cinematic keyframes, the intro flies to the first
-    // FOLLOW-BEHIND playback pose. Cinematic smoothing then takes over once
-    // route playback begins.
-    const introCameraMode =
-      cameraMode === 'cinematic' ? 'follow-behind' : cameraMode;
+    // No opening fly-in. Cut directly from the panoramic overview to the
+    // exact first playback pose, then let the normal playback camera take over.
+    resetPlaybackCameraGuards();
+    const frameState = getCurrentFrameState();
+    applyCameraFrame(
+      map,
+      resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false },
+    );
 
-    const pose = getTrailReplayCameraPose(
+    // Preserve the first pose as the starting point for the continuous
+    // TrailReplay-style smoother so frame 2 does not jump.
+    const progress = 0;
+    const rawPose = getTrailReplayCameraPose(
       route,
-      0,
+      progress,
       getFollowBehindZoomLevel?.() ?? 33,
       {
-        cameraMode: introCameraMode,
+        cameraMode,
         cameraStability: getCameraStability?.() ?? 0.3,
         videoDurationSeconds: getDuration(),
       },
     );
-    if (!pose) return Promise.resolve(false);
+    if (rawPose) {
+      resetTrailReplayMotionState(trailReplayMotion);
+      trailReplayMotion.lastTimeSec = 0;
+      trailReplayMotion.center = { ...rawPose.center };
+      trailReplayMotion.bearing = rawPose.bearing;
+      trailReplayMotion.zoom = rawPose.zoom;
+      trailReplayMotion.zoomTarget = rawPose.zoom;
+      trailReplayMotion.pitch = rawPose.pitch;
+      introCameraSeeded = true;
+    }
 
-    // TrailReplay primes its camera refs from the intro pose so the first
-    // playback update continues from the exact pose the fly-in reached.
-    resetTrailReplayMotionState(trailReplayMotion);
-    trailReplayMotion.lastTimeSec = 0;
-    trailReplayMotion.center = { ...pose.center };
-    trailReplayMotion.bearing = pose.bearing;
-    trailReplayMotion.zoom = pose.zoom;
-    trailReplayMotion.zoomTarget = pose.zoom;
-    trailReplayMotion.pitch = pose.pitch;
-    introCameraSeeded = true;
-
-    const generation = ++transitionGeneration;
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        if (generation !== transitionGeneration) {
-          introCameraSeeded = false;
-          resolve(false);
-          return;
-        }
-
-        // Do not snap through resolveCameraFrameForView here. TrailReplay lets
-        // flyTo finish on the intro pose, then playback owns the next frame.
-        resolve(true);
-      };
-
-      map.once?.('moveend', finish);
-      map.flyTo({
-        center: [pose.center.lng, pose.center.lat],
-        zoom: pose.zoom,
-        pitch: pose.pitch,
-        bearing: pose.bearing,
-        duration: durationMs,
-        // TrailReplay uses a linear fly-in so arrival happens exactly when
-        // route playback begins, rather than visually arriving early.
-        easing: (value) => value,
-        essential: true,
-      });
-      window.setTimeout(finish, durationMs + 120);
-    });
+    map.triggerRepaint?.();
+    return Promise.resolve(true);
   }
 
   function showOverview() {
@@ -787,12 +762,12 @@ export function createAnimator(map, ui, {
       );
     }
 
-    // TrailReplay sequence: panoramic route overview -> exact first playback
-    // pose -> steady route replay. Resumes in the middle skip the intro.
+    // Opening sequence: keep the panoramic overview while idle, then cut
+    // directly to the first playback pose. No animated zoom-in.
     if (animDistance < 1 && animTime < 0.001) {
       playing = true;
       ui.setPlaying(true);
-      focusStart(INTRO_DURATION_MS).then((completed) => {
+      focusStart().then((completed) => {
         if (!completed || !playing) return;
         startRoutePlayback();
       });
