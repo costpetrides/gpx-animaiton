@@ -195,17 +195,12 @@ async function exportDeterministicMp4({
     });
   };
 
-  // Opening panorama is already the reset frame.
+  // Start export directly on the first playback camera pose.
   animator.reset();
-  animator.showOverview?.();
-  await waitForMapSettledEnough(map, signal);
-  drawCompositeFrame();
-
-  // No animated opening fly-in. Snap from the panorama to the first playback
-  // pose before encoding the route timeline.
   await animator.focusStart?.(0);
   map.triggerRepaint?.();
-  await waitForMapRender(map, signal);
+  await waitForMapSettledEnough(map, signal);
+  drawCompositeFrame();
 
   onStatus?.('Rendering route…');
   for (let i = 0; i < routeFrames; i += 1) {
@@ -289,16 +284,14 @@ async function exportWebmFallback({
   });
 
   animator.reset();
-  animator.showOverview?.();
+  await animator.focusStart?.(0);
+  map.triggerRepaint?.();
   await waitForMapRender(map, signal);
   drawCompositeFrame();
 
   recorder.start(100);
 
   onStatus?.('Rendering WebM…');
-  await animator.focusStart?.(0);
-  map.triggerRepaint?.();
-  await waitForMapRender(map, signal);
 
   const totalFrames = Math.ceil(routeDurationSec * quality.fps);
   const frameInterval = 1000 / quality.fps;
