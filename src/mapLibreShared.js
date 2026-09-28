@@ -99,10 +99,12 @@ const MAPTERHORN_TILES = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp';
 const MAPTERHORN_ATTRIBUTION =
   '<a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener">© Mapterhorn</a>';
 
-function findFirstSymbolLayerId(map) {
+function findFirstVisibleSymbolLayerId(map) {
   const layers = map.getStyle()?.layers || [];
   for (const layer of layers) {
-    if (layer.type === 'symbol') return layer.id;
+    if (layer.type !== 'symbol') continue;
+    const visibility = layer.layout?.visibility ?? 'visible';
+    if (visibility !== 'none') return layer.id;
   }
   return undefined;
 }
@@ -169,11 +171,18 @@ function setStyleBuildingsVisible(map, visible) {
 }
 
 function ensureHillshade(map) {
+  const beforeId = findFirstVisibleSymbolLayerId(map);
+
   if (map.getLayer(HILLSHADE_LAYER_ID)) {
     map.setLayoutProperty(HILLSHADE_LAYER_ID, 'visibility', 'visible');
+    try {
+      if (beforeId) map.moveLayer(HILLSHADE_LAYER_ID, beforeId);
+    } catch {
+      // Layer ordering can briefly be unavailable while style state settles.
+    }
     return;
   }
-  const beforeId = findFirstSymbolLayerId(map);
+
   const layer = {
     id: HILLSHADE_LAYER_ID,
     type: 'hillshade',
@@ -257,7 +266,7 @@ export function applyMap3dMode(map, enabled, options = {}) {
       setStyleBuildingsVisible(map, false);
       const vectorSource = findVectorSourceId(map);
       if (vectorSource && !map.getLayer(BUILDINGS_3D_LAYER_ID)) {
-        const beforeId = findFirstSymbolLayerId(map);
+        const beforeId = findFirstVisibleSymbolLayerId(map);
         const buildingLayer = {
           id: BUILDINGS_3D_LAYER_ID,
           source: vectorSource,
@@ -349,6 +358,7 @@ export function syncMap3dGestures(map, enabled) {
 export function applyCinematicPresentation(map, {
   hideLabels = true,
   muteRoads = true,
+  activeBasemapStyleId = null,
 } = {}) {
   if (!map) return;
   try {
@@ -366,6 +376,16 @@ export function applyCinematicPresentation(map, {
     if (id === HILLSHADE_LAYER_ID || id === BUILDINGS_3D_LAYER_ID) continue;
 
     try {
+      const layerBasemapStyleId = layer.metadata?.['ryodo:basemap-style'];
+      if (
+        activeBasemapStyleId &&
+        layerBasemapStyleId &&
+        layerBasemapStyleId !== activeBasemapStyleId
+      ) {
+        map.setLayoutProperty(id, 'visibility', 'none');
+        continue;
+      }
+
       if (hideLabels && layer.type === 'symbol') {
         const sourceLayer = String(layer['source-layer'] || '').toLowerCase();
         const normalizedId = String(id).toLowerCase();
