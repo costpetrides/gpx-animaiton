@@ -410,22 +410,32 @@ export function createAnimator(map, ui, {
 
   function setMapViewMode(mode) {
     const next = mode === '2d' ? '2d' : '3d';
-    // Already in this mode — never re-run the prepare pipeline (that was
-    // disarming Play right after the scene finished arming).
+    // Already in this mode — do not re-run the prepare pipeline, but do
+    // re-apply the map presentation. The animator starts in 3D, so startup can
+    // legitimately request "3d" again before terrain/building state has ever
+    // been applied to the loaded style.
     if (mapViewMode === next) {
-      syncMap3dGestures(map, next === '3d');
+      const enabled3d = next === '3d';
+      setMap3dMode(map, enabled3d && !terrainDegraded, {
+        pitch: enabled3d ? 58 : 0,
+        bearing: map.getBearing?.() ?? 0,
+        exaggeration: getTerrainExaggeration(),
+        buildings: false,
+        animate: false,
+      });
+      syncMap3dGestures(map, enabled3d);
       return;
     }
     mapViewMode = next;
     const enabled3d = mapViewMode === '3d';
 
-    // Peak Explorer logic: 3D = terrain + hillshade + buildings; 2D clears them.
+    // Cinematic logic: 3D = terrain + hillshade; buildings stay permanently off.
     // animate:false so route camera ownership stays with the animator.
     setMap3dMode(map, enabled3d && !terrainDegraded, {
       pitch: enabled3d ? 58 : 0,
       bearing: map.getBearing?.() ?? 0,
       exaggeration: getTerrainExaggeration(),
-      buildings: enabled3d,
+      buildings: false,
       animate: false,
     });
     syncMap3dGestures(map, enabled3d);
@@ -474,7 +484,7 @@ export function createAnimator(map, ui, {
       pitch: mapViewMode === '3d' ? 58 : 0,
       bearing: map.getBearing?.() ?? 0,
       exaggeration: getTerrainExaggeration(),
-      buildings: mapViewMode === '3d',
+      buildings: false,
       animate: false,
     });
     syncMap3dGestures(map, mapViewMode === '3d');
@@ -867,7 +877,7 @@ export function createAnimator(map, ui, {
           pitch: map.getPitch?.() || 58,
           bearing: map.getBearing?.() ?? 0,
           exaggeration: getTerrainExaggeration(),
-          buildings: true,
+          buildings: false,
           animate: false,
         });
         syncMap3dGestures(map, true);
