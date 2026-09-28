@@ -82,9 +82,9 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
     const range = cachedMax - cachedMin || 1;
     const pad = 8;
 
-    cachedPoints = elevations.map((e, i) => ({
-      x: pad + (i / (samples.length - 1)) * (w - pad * 2),
-      y: pad + (1 - (e - cachedMin) / range) * (h - pad * 2),
+    cachedPoints = samples.map((sample) => ({
+      x: pad + Math.max(0, Math.min(1, sample.progress)) * (w - pad * 2),
+      y: pad + (1 - (sample.elevation - cachedMin) / range) * (h - pad * 2),
     }));
     cachedSize = { w, h };
   }
@@ -132,9 +132,17 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
     ctx.clearRect(0, 0, w, h);
     drawStaticChart(w, h);
 
-    const idx = Math.floor(progress * (samples.length - 1));
+    let idx = 0;
+    let bestDistance = Infinity;
+    samples.forEach((sample, sampleIndex) => {
+      const distance = Math.abs(sample.progress - progress);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        idx = sampleIndex;
+      }
+    });
     const cx = cachedPoints[idx].x;
-    const elevationValue = elevations[idx];
+    const elevationValue = samples[idx]?.elevation;
 
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.lineWidth = 1;
@@ -153,7 +161,6 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
     if (Number.isFinite(elevationValue)) {
       const label = `${Math.round(elevationValue)} m`;
       const padX = 6;
-      const padY = 4;
       ctx.font = '11px system-ui, sans-serif';
       const textW = ctx.measureText(label).width;
       const boxW = textW + padX * 2;
