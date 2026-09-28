@@ -170,6 +170,18 @@ function setStyleBuildingsVisible(map, visible) {
   }
 }
 
+export function enforceBuildingsHidden(map) {
+  if (!map) return;
+  setStyleBuildingsVisible(map, false);
+  try {
+    if (map.getLayer(BUILDINGS_3D_LAYER_ID)) {
+      map.removeLayer(BUILDINGS_3D_LAYER_ID);
+    }
+  } catch {
+    // Keep film rendering alive even if the style graph is mid-update.
+  }
+}
+
 function ensureHillshade(map) {
   const beforeId = findFirstVisibleSymbolLayerId(map);
 
@@ -304,8 +316,7 @@ export function applyMap3dMode(map, enabled, options = {}) {
       }
     } else {
       // Buildings are off: hide flat basemap building fills too.
-      setStyleBuildingsVisible(map, false);
-      if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.removeLayer(BUILDINGS_3D_LAYER_ID);
+      enforceBuildingsHidden(map);
     }
     return;
   }
@@ -320,9 +331,8 @@ export function applyMap3dMode(map, enabled, options = {}) {
   }
 
   map.setTerrain(null);
-  if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.removeLayer(BUILDINGS_3D_LAYER_ID);
+  enforceBuildingsHidden(map);
   if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
-  setStyleBuildingsVisible(map, false);
   if (animate) {
     map.easeTo({ pitch: 0, bearing: map.getBearing(), duration: 450 });
   }
@@ -361,6 +371,9 @@ export function applyCinematicPresentation(map, {
   activeBasemapStyleId = null,
 } = {}) {
   if (!map) return;
+  // Film invariant: buildings are always off, regardless of which persistent
+  // OpenFreeMap presentation is currently visible.
+  enforceBuildingsHidden(map);
   try {
     if (!map.isStyleLoaded()) return;
   } catch {
