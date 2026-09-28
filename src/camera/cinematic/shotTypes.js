@@ -23,12 +23,12 @@ export const SHOT_DWELL_SEC = {
 };
 
 /**
- * Framing priors — closer to the trail so the path fills more of the frame.
+ * Framing priors — slightly closer to the trail so the path reads more clearly without losing landscape context.
  */
 export const SHOT_PRIORS = {
   [SHOT_TYPE.ESTABLISH]: {
     pitch: 52,
-    zoom: 13.6,
+    zoom: 13.8,
     altitudeM: 200,
     orbitDeg: 28,
     lookAtForwardM: 55,
@@ -36,7 +36,7 @@ export const SHOT_PRIORS = {
   },
   [SHOT_TYPE.TRAVEL]: {
     pitch: 58,
-    zoom: 14.4,
+    zoom: 14.7,
     altitudeM: 130,
     orbitDeg: 32,
     lookAtForwardM: 40,
@@ -44,7 +44,7 @@ export const SHOT_PRIORS = {
   },
   [SHOT_TYPE.ORBIT]: {
     pitch: 56,
-    zoom: 14.2,
+    zoom: 14.5,
     altitudeM: 150,
     orbitDeg: 55,
     lookAtForwardM: 35,
@@ -52,7 +52,7 @@ export const SHOT_PRIORS = {
   },
   [SHOT_TYPE.REVEAL]: {
     pitch: 54,
-    zoom: 13.9,
+    zoom: 14.15,
     altitudeM: 175,
     orbitDeg: 40,
     lookAtForwardM: 50,
@@ -60,7 +60,7 @@ export const SHOT_PRIORS = {
   },
   [SHOT_TYPE.SUMMIT]: {
     pitch: 48,
-    zoom: 13.4,
+    zoom: 13.6,
     altitudeM: 220,
     orbitDeg: 22,
     lookAtForwardM: 65,
@@ -68,7 +68,7 @@ export const SHOT_PRIORS = {
   },
   [SHOT_TYPE.VALLEY]: {
     pitch: 60,
-    zoom: 14.1,
+    zoom: 14.4,
     altitudeM: 145,
     orbitDeg: 70,
     lookAtForwardM: 45,
