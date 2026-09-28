@@ -389,6 +389,35 @@ export function createCameraDirector(deps) {
       }
     }
 
+    // If terrain blocks the current viewpoint, escape laterally first.
+    // This preserves a close cinematic framing and avoids the cheap-looking
+    // "always zoom out / climb higher" response.
+    if (!best.los.clear) {
+      const visibilityCandidates = optimizer.buildVisibilityCandidates(
+        best.shot,
+        sampleForCam,
+      );
+
+      let visibilityBest = best;
+      for (const candidate of visibilityCandidates) {
+        const evaluated = evaluateShot(candidate, sampleForCam, {
+          shotType: candidate.shotType || desiredShotType,
+        });
+
+        const clears = evaluated.los.clear;
+        const currentClears = visibilityBest.los.clear;
+
+        if (
+          (clears && !currentClears) ||
+          (clears === currentClears && evaluated.score > visibilityBest.score)
+        ) {
+          visibilityBest = evaluated;
+        }
+      }
+
+      best = visibilityBest;
+    }
+
     lastLosClear = best.los.clear;
     if (!best.los.clear) blockedStreak += 1;
     else blockedStreak = Math.max(0, blockedStreak - 2);
