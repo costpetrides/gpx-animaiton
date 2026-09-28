@@ -224,20 +224,28 @@ async function exportDeterministicMp4({
   }
 
   onStatus?.('Rendering cinematic outro…');
-  const outroAction = Promise.resolve(animator.playOutro?.(outroMs));
-  const outroStartedAt = performance.now();
   const outroOffsetMs = introMs + routeDurationSec * 1000;
+  animator.beginExportOutro?.();
 
   for (let i = 0; i < outroFrames; i += 1) {
-    const targetWallMs = outroStartedAt + i * frameDurationMs;
-    const remaining = targetWallMs - performance.now();
-    if (remaining > 0) await waitMs(remaining, signal);
+    if (signal.aborted) throw new Error('export_aborted');
+
+    const progress =
+      outroFrames <= 1 ? 1 : i / (outroFrames - 1);
+    const rendered = animator.renderExportOutroProgress?.(progress);
+
+    if (rendered === false || rendered == null) {
+      // Compatibility fallback for older animator implementations.
+      if (i === 0) {
+        await Promise.resolve(animator.playOutro?.(outroMs));
+      }
+    }
 
     map.triggerRepaint?.();
     await waitForMapRender(map, signal);
     await encodeCurrent(outroOffsetMs + i * frameDurationMs);
   }
-  await outroAction;
+  animator.resetExportOutro?.();
 
   onStatus?.('Finalizing MP4…');
   return await encoder.finalize();
