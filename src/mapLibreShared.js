@@ -144,12 +144,44 @@ export function enforceBuildingsHidden(map) {
   }
 }
 
+function ensureTerrainHillshade(map) {
+  const beforeId = findFirstVisibleSymbolLayerId(map);
+  const layer = map.getLayer(HILLSHADE_LAYER_ID);
+
+  if (!layer) {
+    const hillshade = {
+      id: HILLSHADE_LAYER_ID,
+      type: 'hillshade',
+      source: TERRAIN_SOURCE_ID,
+      layout: { visibility: 'visible' },
+      paint: {
+        // Terrain-first presentation: enough relief to read the landscape,
+        // restrained enough to keep OpenFreeMap roads and fills crisp.
+        'hillshade-exaggeration': 0.34,
+        'hillshade-shadow-color': '#172033',
+        'hillshade-highlight-color': '#ffffff',
+        'hillshade-accent-color': '#6b7280',
+      },
+    };
+    if (beforeId) map.addLayer(hillshade, beforeId);
+    else map.addLayer(hillshade);
+    return;
+  }
+
+  map.setLayoutProperty(HILLSHADE_LAYER_ID, 'visibility', 'visible');
+  map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', 0.34);
+  try {
+    if (beforeId) map.moveLayer(HILLSHADE_LAYER_ID, beforeId);
+  } catch {
+    // Best-effort ordering while the style graph settles.
+  }
+}
+
 /**
  * Enable/disable 3D terrain on the current basemap.
  *
- * TrailReplay keeps hillshade as an optional presentation layer rather than
- * forcing it over every basemap. Do the same here so OpenFreeMap vector detail
- * stays crisp while the surface is still terrain-draped.
+ * Terrain-first presentation: preserve the TrailReplay-style 1.5 terrain
+ * geometry and add restrained hillshade for depth while retaining basemap detail.
  * @param {import('maplibre-gl').Map} map
  * @param {boolean} enabled
  * @param {{ pitch?: number, bearing?: number, exaggeration?: number, buildings?: boolean, animate?: boolean }} [options]
@@ -182,12 +214,10 @@ export function applyMap3dMode(map, enabled, options = {}) {
       // Older MapLibre builds may not expose these helpers the same way.
     }
 
-    // Do not force hillshade over Outdoor / Positron / Dark.
-    // The reference TrailReplay setup treats hillshade as a separate optional
-    // layer; automatic hillshade was washing out fine OpenFreeMap vector detail.
-    if (map.getLayer(HILLSHADE_LAYER_ID)) {
-      map.removeLayer(HILLSHADE_LAYER_ID);
-    }
+    // Terrain-first visual balance (~60% relief / 40% basemap detail).
+    // Keep the reference-style 1.5 terrain geometry, but add only a restrained
+    // hillshade so relief reads clearly without washing out roads/fills.
+    ensureTerrainHillshade(map);
     map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration });
     try {
       map.setCenterClampedToGround?.(false);
