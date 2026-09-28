@@ -199,6 +199,7 @@ function sampleAt(pts, segIdx, t) {
     lat: a.lat + (b.lat - a.lat) * t,
     lng: a.lng + (b.lng - a.lng) * t,
     ele: lerpEle(a.ele, b.ele, t),
+    time: lerpTime(a.time, b.time, t),
   };
 
   const lookAhead = Math.min(segIdx + 3, pts.length - 1);
