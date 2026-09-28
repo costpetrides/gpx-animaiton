@@ -34,7 +34,7 @@ function createRouteStats(routePath) {
     hasTime: routePath.hasTime,
     startElevation: start?.ele ?? null,
     endElevation: end?.ele ?? null,
-    elevationGain: computeElevationGainM(routePath.raw),
+    elevationGain: routePath.elevationGain?.[routePath.elevationGain.length - 1] ?? computeElevationGainM(routePath.raw),
   };
 }
 
