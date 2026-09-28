@@ -608,6 +608,7 @@ export function createAnimator(map, ui, {
       speed: frameState.hud.speed,
       elevation: frameState.hud.elevation,
       elevationGain: frameState.hud.elevationGain,
+      recordedTime: frameState.hud.recordedTime,
       progress: frameState.hud.progress,
       duration: frameState.hud.duration,
       durationSec,
