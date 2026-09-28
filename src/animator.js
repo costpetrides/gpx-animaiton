@@ -79,7 +79,7 @@ export function createAnimator(map, ui, {
   let terrainDegraded = false;
   let loopPlayback = false;
   let transitionGeneration = 0;
-  let introCameraSeeded = false;
+  let startCameraSeeded = false;
   let exportOutroState = null;
   const trailReplayMotion = createTrailReplayMotionState();
   const INTRO_DURATION_MS = 0;
@@ -228,7 +228,7 @@ export function createAnimator(map, ui, {
   }
 
   function resetPlaybackCameraGuards() {
-    introCameraSeeded = false;
+    startCameraSeeded = false;
     if (cameraState?.terrainGuard) {
       cameraState.terrainGuard.lastEnvelopeM = null;
       cameraState.terrainGuard.smoothedElevationM = null;
@@ -514,7 +514,7 @@ export function createAnimator(map, ui, {
     const trackStyle = getTrackStyle?.();
     if (trackStyle) renderer.applyTrackStyle?.(trackStyle);
     if (route) refreshLayers(getCurrentFrameState());
-    // Peak Explorer: re-assert 2D/3D after style/layer rebuilds.
+    // Re-assert 2D/3D whenever playback layers are ensured.
     setMap3dMode(map, mapViewMode === '3d' && !terrainDegraded, {
       pitch: mapViewMode === '3d' ? 58 : 0,
       bearing: map.getBearing?.() ?? 0,
@@ -671,7 +671,7 @@ export function createAnimator(map, ui, {
     if (!route || !playbackPreparer.isArmed()) return;
 
     lastAppliedCadenceTick = -1;
-    if (animDistance < 1 && !introCameraSeeded) {
+    if (animDistance < 1 && !startCameraSeeded) {
       resetPlaybackCameraGuards();
     }
     syncTerrainHealth(getCurrentFrameState());
@@ -725,7 +725,7 @@ export function createAnimator(map, ui, {
       trailReplayMotion.zoom = rawPose.zoom;
       trailReplayMotion.zoomTarget = rawPose.zoom;
       trailReplayMotion.pitch = rawPose.pitch;
-      introCameraSeeded = true;
+      startCameraSeeded = true;
     }
 
     map.triggerRepaint?.();
@@ -868,7 +868,7 @@ export function createAnimator(map, ui, {
         dt,
         speedMul,
       );
-      introCameraSeeded = false;
+      startCameraSeeded = false;
       animTime = nextFrame.animTime;
       animDistance = nextFrame.animDistance;
       currentSpeed = nextFrame.currentSpeed;
@@ -959,7 +959,7 @@ export function createAnimator(map, ui, {
     },
     pause() {
       transitionGeneration += 1;
-      introCameraSeeded = false;
+      startCameraSeeded = false;
       playing = false;
       lastFrame = 0;
       playbackClock = null;
