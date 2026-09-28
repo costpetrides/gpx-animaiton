@@ -623,6 +623,7 @@ export function createAnimator(map, ui, {
         } catch (err) {
           route = null;
           routeName = '';
+          tileWarmup?.setRoute?.(null);
           playbackPreparer.disarm();
           ui.onRouteLoadFailed?.(err);
         }
