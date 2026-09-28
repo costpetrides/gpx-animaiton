@@ -72,6 +72,7 @@ export function createAnimator(map, ui, {
   let terrainDegraded = false;
   let loopPlayback = false;
   let transitionGeneration = 0;
+  let lastCameraAnimTimeSec = null;
   const INTRO_DURATION_MS = 1500;
   const OUTRO_DURATION_MS = 3000;
 
@@ -209,7 +210,9 @@ export function createAnimator(map, ui, {
       cameraState.terrainGuard.smoothedElevationM = null;
       if (cameraState.terrainGuard.bearingGuard) {
         cameraState.terrainGuard.bearingGuard.lastBearingDeg = null;
+        cameraState.terrainGuard.bearingGuard.deltaMs = null;
       }
+      lastCameraAnimTimeSec = null;
     }
     clearTerrainBarrier();
   }
@@ -256,8 +259,14 @@ export function createAnimator(map, ui, {
           );
           frame.terrainGuard.elevationSmoothing = 0.18;
           if (frame.terrainGuard.bearingGuard) {
-            frame.terrainGuard.bearingGuard.maxDeltaDegPerUpdate = continuous ? 1.8 : 8;
-            frame.terrainGuard.bearingGuard.minDeltaDeg = continuous ? 0.12 : 0;
+            const currentAnimTime = frameState.playback?.animTime ?? animTime;
+            frame.terrainGuard.bearingGuard.deltaMs =
+              continuous && Number.isFinite(lastCameraAnimTimeSec)
+                ? Math.max(0, (currentAnimTime - lastCameraAnimTimeSec) * 1000)
+                : null;
+            frame.terrainGuard.bearingGuard.cameraStability = 0.3;
+            frame.terrainGuard.bearingGuard.minDeltaDeg = continuous ? 4 : 0;
+            lastCameraAnimTimeSec = currentAnimTime;
           }
         }
         return frame;
