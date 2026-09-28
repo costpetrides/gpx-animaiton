@@ -66,14 +66,21 @@
 
           <section class="side-section">
             <h2>Preview</h2>
+
+            <label class="field-label" for="follow-distance">Camera distance</label>
+            <div class="slider-row">
+              <input id="follow-distance" type="range" min="0" max="7" step="1" value="3" />
+              <span class="mono" id="follow-distance-label">Medium</span>
+            </div>
+            <p class="field-hint">TrailReplay-style follow-behind framing: distance changes zoom and pitch together.</p>
+
             <label class="field-label" for="speed-select">Speed</label>
             <select id="speed-select">
               <option value="0.5">0.5×</option>
-              <option value="1">1×</option>
+              <option value="1" selected>1×</option>
               <option value="2">2×</option>
-              <option value="3" selected>3×</option>
-              <option value="6">6×</option>
-              <option value="12">12×</option>
+              <option value="4">4×</option>
+              <option value="8">8×</option>
             </select>
           </section>
 
@@ -84,6 +91,17 @@
           <div class="viewport-canvas" id="viewport-canvas">
             <div id="viewport-map-wrap">
               <div id="map"></div>
+            </div>
+
+            <div class="film-stats hidden" id="film-stats" aria-live="off">
+              <div><span>Distance</span><strong id="live-distance">—</strong></div>
+              <div><span>Gain</span><strong id="live-gain">—</strong></div>
+              <div><span>Altitude</span><strong id="live-elevation">—</strong></div>
+              <div><span>Progress</span><strong id="live-progress">0%</strong></div>
+            </div>
+
+            <div class="elevation-profile-wrap hidden" id="elevation-profile-wrap">
+              <canvas id="elevation-profile" aria-label="Elevation profile"></canvas>
             </div>
             <div
               id="viewport-preparing"
