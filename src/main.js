@@ -555,11 +555,10 @@ mapStyleSelect?.addEventListener('change', () => {
 
   setMapStyle(map, nextStyle.styleUrl, () => {
     try {
-      // setStyle removes every custom source/layer. Rebuild our film stack
-      // only after the new OpenFreeMap style is fully loaded.
-      animator.addLayers?.();
-      enableCinematic3d();
-      animator.refreshCamera?.();
+      // TrailReplay keeps basemap presentation separate from playback
+      // overlays. Our remote OpenFreeMap styles require setStyle(), so perform
+      // an explicit hard rebuild of the persistent film stack after style.load.
+      animator.rebuildAfterStyleChange?.();
       scheduleCinematicMapLook();
 
       if (getRouteDocument()) {
