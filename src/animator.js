@@ -31,7 +31,11 @@ import { resolveCameraShotFromDocument } from './modules/cameraModule.js';
 import { rigToShot } from './camera/rig.js';
 import {
   cameraPoseToShot,
+  createTrailReplayMotionState,
   getTrailReplayCameraPose,
+  normalizeTrailReplayCameraMode,
+  resetTrailReplayMotionState,
+  smoothTrailReplayCameraPose,
 } from './camera/trailReplayPlan.js';
 
 export function createAnimator(map, ui, {
@@ -41,6 +45,8 @@ export function createAnimator(map, ui, {
   getTrackStyle = () => null,
   getCinematicIntensity = () => 0.65,
   getFollowBehindZoomLevel = () => 33,
+  getCameraMode = () => 'cinematic',
+  getCameraStability = () => 0.3,
 } = {}) {
   const renderer = createMapPlaybackRenderer(map);
   const probe = createPlaybackProbe({
@@ -72,7 +78,7 @@ export function createAnimator(map, ui, {
   let terrainDegraded = false;
   let loopPlayback = false;
   let transitionGeneration = 0;
-  let lastCameraAnimTimeSec = null;
+  const trailReplayMotion = createTrailReplayMotionState();
   const INTRO_DURATION_MS = 1500;
   const OUTRO_DURATION_MS = 3000;
 
@@ -212,7 +218,7 @@ export function createAnimator(map, ui, {
         cameraState.terrainGuard.bearingGuard.lastBearingDeg = null;
         cameraState.terrainGuard.bearingGuard.deltaMs = null;
       }
-      lastCameraAnimTimeSec = null;
+      resetTrailReplayMotionState(trailReplayMotion);
     }
     clearTerrainBarrier();
   }
@@ -234,14 +240,30 @@ export function createAnimator(map, ui, {
 
     const doc = getCameraDocument?.();
     if (mapViewMode !== '2d' && isCinematicCamera(doc) && route && frameState?.sample) {
+      const cameraMode = normalizeTrailReplayCameraMode(getCameraMode?.());
+      if (cameraMode === 'overview') return null;
+
       const progress = route.totalDistance > 0
         ? animDistance / route.totalDistance
         : 0;
-      const pose = getTrailReplayCameraPose(
+      const stability = getCameraStability?.() ?? 0.3;
+      const rawPose = getTrailReplayCameraPose(
         route,
         progress,
         getFollowBehindZoomLevel?.() ?? 33,
+        {
+          cameraMode,
+          cameraStability: stability,
+          videoDurationSeconds: getDuration(),
+        },
       );
+      const pose = continuous
+        ? smoothTrailReplayCameraPose(trailReplayMotion, rawPose, {
+            cameraMode,
+            cameraStability: stability,
+            currentTimeSec: frameState.playback?.animTime ?? animTime,
+          })
+        : rawPose;
       const shot = cameraPoseToShot(pose);
 
       if (shot) {
@@ -250,8 +272,9 @@ export function createAnimator(map, ui, {
           shot,
         });
 
-        // TrailReplay practice: pose generation stays deterministic and calm;
-        // the terrain guard is only a safety layer underneath it.
+        // TrailReplay owns bearing/zoom/pitch smoothing before jumpTo. Keep
+        // terrain here as a pure clearance/safety layer, not a second camera
+        // smoother fighting the authored pose.
         if (frame.terrainGuard) {
           frame.terrainGuard.minClearanceM = Math.max(
             frame.terrainGuard.minClearanceM ?? 40,
@@ -259,14 +282,7 @@ export function createAnimator(map, ui, {
           );
           frame.terrainGuard.elevationSmoothing = 0.18;
           if (frame.terrainGuard.bearingGuard) {
-            const currentAnimTime = frameState.playback?.animTime ?? animTime;
-            frame.terrainGuard.bearingGuard.deltaMs =
-              continuous && Number.isFinite(lastCameraAnimTimeSec)
-                ? Math.max(0, (currentAnimTime - lastCameraAnimTimeSec) * 1000)
-                : null;
-            frame.terrainGuard.bearingGuard.cameraStability = 0.3;
-            frame.terrainGuard.bearingGuard.minDeltaDeg = continuous ? 4 : 0;
-            lastCameraAnimTimeSec = currentAnimTime;
+            frame.terrainGuard.bearingGuard.enabled = false;
           }
         }
         return frame;
@@ -653,10 +669,21 @@ export function createAnimator(map, ui, {
   function focusStart(durationMs = INTRO_DURATION_MS) {
     if (!route) return Promise.resolve(false);
 
+    const cameraMode = normalizeTrailReplayCameraMode(getCameraMode?.());
+    if (cameraMode === 'overview') {
+      showOverview();
+      return Promise.resolve(true);
+    }
+
     const pose = getTrailReplayCameraPose(
       route,
       0,
       getFollowBehindZoomLevel?.() ?? 33,
+      {
+        cameraMode,
+        cameraStability: getCameraStability?.() ?? 0.3,
+        videoDurationSeconds: getDuration(),
+      },
     );
     if (!pose) return Promise.resolve(false);
 
@@ -1025,11 +1052,15 @@ export function createAnimator(map, ui, {
       if (!route) return;
       resetPlaybackCameraGuards();
       const frameState = getCurrentFrameState();
-      applyCameraFrame(
-        map,
-        resolveCameraFrameForView(frameState, { continuous: false }),
-        { continuous: false },
-      );
+      if (normalizeTrailReplayCameraMode(getCameraMode?.()) === 'overview') {
+        showOverview();
+      } else {
+        applyCameraFrame(
+          map,
+          resolveCameraFrameForView(frameState, { continuous: false }),
+          { continuous: false },
+        );
+      }
       refreshProgressLayers(frameState, true);
     },
     getSpeed: () => speedMul,
