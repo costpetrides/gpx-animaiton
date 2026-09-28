@@ -525,7 +525,7 @@ export function disableTerrain(map) {
  * Enable DEM terrain for playback (no camera ease — animator owns the shot).
  * Uses Peak Explorer Mapterhorn source + default exaggeration.
  */
-export function enableTerrain(map, exaggeration = 1.6) {
+export function enableTerrain(map, exaggeration = 1.5) {
   try {
     ensureTerrainSource(map);
     const current = map.getTerrain?.();
@@ -545,9 +545,8 @@ export function enableTerrain(map, exaggeration = 1.6) {
 }
 
 /**
- * Full Peak Explorer 2D/3D mode (terrain + hillshade + buildings + gestures).
- * Prefer this for Map 2D / Map 3D UI toggles; use enableTerrain/disableTerrain
- * during playback stall recovery.
+ * Full 2D/3D mode. Terrain is enabled without forcing hillshade or buildings;
+ * use enableTerrain/disableTerrain during playback stall recovery.
  */
 export function setMap3dMode(map, enabled, options = {}) {
   applyPeMap3dMode(map, enabled, options);
