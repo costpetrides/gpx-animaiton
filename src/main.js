@@ -172,7 +172,7 @@ const animator = createAnimator(map, {
     shell.hideEmptyState();
     setNavVisible(false);
     shell.setStatus(`Creating film for ${routeDoc?.name || name}…`);
-    shell.showPreparing('Creating your film', 'Building terrain and cinematic camera…');
+    shell.showPreparing('Preparing your film', 'Loading map detail and terrain…');
     setPlaybackControlsEnabled(false);
     renderProjectState();
     shell.setTimes(0, animator.getDuration?.() || 0);
@@ -194,7 +194,9 @@ const animator = createAnimator(map, {
       camera: 'Framing the camera…',
       terrain_mode: 'Sculpting the landscape…',
       tiles_initial: 'Loading the world…',
-      corridor: 'Warming the route…',
+      corridor_prefetch: 'Warming nearby map detail…',
+      full_route_prefetch: 'Warming the full route…',
+      corridor: 'Warming nearby map detail…',
       settle: 'Finishing the scene…',
       armed: 'Ready',
       failed: 'Could not build the scene',
