@@ -29,17 +29,26 @@ export function estimateCameraEye(center, bearingDeg, pitchDeg, elevationM, grou
 }
 
 /**
- * @returns {{ clear: boolean, blockedFraction: number, maxIntrusionM: number }}
+ * Test terrain visibility and estimate the minimum camera-eye lift required to
+ * clear the sampled terrain profile.
+ *
+ * @returns {{
+ *   clear: boolean,
+ *   blockedFraction: number,
+ *   maxIntrusionM: number,
+ *   requiredEyeLiftM: number
+ * }}
  */
 export function testLineOfSight(map, eye, target, options = {}) {
-  const samples = options.samples ?? 5;
-  const marginM = options.marginM ?? 12;
+  const samples = options.samples ?? 11;
+  const marginM = options.marginM ?? 22;
   if (!eye || !target || !map) {
-    return { clear: true, blockedFraction: 0, maxIntrusionM: 0 };
+    return { clear: true, blockedFraction: 0, maxIntrusionM: 0, requiredEyeLiftM: 0 };
   }
 
   let blocked = 0;
   let maxIntrusionM = 0;
+  let requiredEyeLiftM = 0;
   const hint = Number.isFinite(target.ele) ? target.ele : eye.ele;
 
   for (let i = 1; i < samples; i++) {
@@ -51,19 +60,28 @@ export function testLineOfSight(map, eye, target, options = {}) {
     const lineEle = lerp(eye.ele, target.ele ?? eye.ele, t);
     const terrainEle = queryTerrainElevationAt(map, lng, lat, hint);
     if (terrainEle == null) continue;
-    const intrusion = terrainEle - (lineEle - marginM);
+    const requiredLineEle = terrainEle + marginM;
+    const intrusion = requiredLineEle - lineEle;
     if (intrusion > 0) {
       blocked += 1;
       maxIntrusionM = Math.max(maxIntrusionM, intrusion);
+
+      // lineEle = eyeEle*(1-t) + targetEle*t
+      // Solve for the minimum eye elevation that clears this terrain sample.
+      const targetEle = target.ele ?? eye.ele;
+      const denom = Math.max(0.08, 1 - t);
+      const requiredEyeEle = (requiredLineEle - targetEle * t) / denom;
+      requiredEyeLiftM = Math.max(requiredEyeLiftM, requiredEyeEle - eye.ele);
     }
   }
 
   const tested = Math.max(1, samples - 2);
   const blockedFraction = blocked / tested;
   return {
-    clear: blockedFraction < 0.12 && maxIntrusionM < 25,
+    clear: blocked === 0,
     blockedFraction,
     maxIntrusionM,
+    requiredEyeLiftM: Math.max(0, requiredEyeLiftM),
   };
 }
 
