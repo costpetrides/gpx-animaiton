@@ -618,26 +618,10 @@ export function createAnimator(map, ui, {
     return getPlaybackDuration(route, speedMul);
   }
 
-  function playInternal() {
+  function startRoutePlayback() {
     if (!route || !playbackPreparer.isArmed()) return;
-    renderer.cancelOverview();
-
-    const dur = getDuration();
-    if (animTime >= dur || animDistance >= route.totalDistance) {
-      setPlaybackState({ animTime: 0, animDistance: 0 });
-      const frameState = getCurrentFrameState();
-      syncMapState(frameState);
-      updateHUD(frameState);
-    }
-    if (!cameraState.shot) {
-      cameraState = createCameraRuntimeState(
-        cameraState.preset,
-        defaultShotForMode(cameraState.preset),
-      );
-    }
 
     lastAppliedCadenceTick = -1;
-    // Keep director continuity across pause/play; only hard-reset at trail start.
     if (animDistance < 1) resetPlaybackCameraGuards();
     syncTerrainHealth(getCurrentFrameState());
     playing = true;
@@ -648,6 +632,97 @@ export function createAnimator(map, ui, {
     clearTerrainBarrier();
     skipNextTerrainBarrier = true;
     renderFrameId = requestAnimationFrame(frame);
+  }
+
+  function focusStart(durationMs = INTRO_DURATION_MS) {
+    if (!route) return Promise.resolve(false);
+
+    const pose = getTrailReplayCameraPose(route, 0);
+    if (!pose) return Promise.resolve(false);
+
+    const generation = ++transitionGeneration;
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (generation !== transitionGeneration) {
+          resolve(false);
+          return;
+        }
+
+        const frameState = getCurrentFrameState();
+        applyCameraFrame(
+          map,
+          resolveCameraFrameForView(frameState, { continuous: false }),
+          { continuous: false },
+        );
+        resolve(true);
+      };
+
+      map.once?.('moveend', finish);
+      map.flyTo({
+        center: [pose.center.lng, pose.center.lat],
+        zoom: pose.zoom,
+        pitch: pose.pitch,
+        bearing: pose.bearing,
+        duration: durationMs,
+        easing: (value) => value,
+        essential: true,
+      });
+      window.setTimeout(finish, durationMs + 120);
+    });
+  }
+
+  function showOverview() {
+    if (!route) return;
+    const bounds = renderer.getBounds(route);
+    if (!bounds) return;
+    fitOverview(map, bounds, { maxElevationM: getRouteMaxElevation() });
+  }
+
+  function playOutro(durationMs = OUTRO_DURATION_MS) {
+    if (!route) return Promise.resolve();
+    const bounds = renderer.getBounds(route);
+    if (!bounds) return Promise.resolve();
+    return flyOverview(map, bounds, {
+      maxElevationM: getRouteMaxElevation(),
+      durationMs,
+    });
+  }
+
+  function playInternal() {
+    if (!route || !playbackPreparer.isArmed()) return;
+    renderer.cancelOverview();
+
+    const dur = getDuration();
+    if (animTime >= dur || animDistance >= route.totalDistance) {
+      setPlaybackState({ animTime: 0, animDistance: 0 });
+      const frameState = getCurrentFrameState();
+      syncMapState(frameState);
+      updateHUD(frameState);
+      showOverview();
+    }
+    if (!cameraState.shot) {
+      cameraState = createCameraRuntimeState(
+        cameraState.preset,
+        defaultShotForMode(cameraState.preset),
+      );
+    }
+
+    // TrailReplay sequence: panoramic route overview -> exact first playback
+    // pose -> steady route replay. Resumes in the middle skip the intro.
+    if (animDistance < 1 && animTime < 0.001) {
+      playing = true;
+      ui.setPlaying(true);
+      focusStart(INTRO_DURATION_MS).then((completed) => {
+        if (!completed || !playing) return;
+        startRoutePlayback();
+      });
+      return;
+    }
+
+    startRoutePlayback();
   }
 
   function frame(ts) {
@@ -724,7 +799,12 @@ export function createAnimator(map, ui, {
         playbackClock = null;
         stopCameraAnimation(map);
         ui.setPlaying(false);
-        probe.flush('playback-finished');
+        const generation = ++transitionGeneration;
+        playOutro(OUTRO_DURATION_MS).then(() => {
+          if (generation === transitionGeneration) {
+            probe.flush('playback-finished');
+          }
+        });
         return;
       }
 
@@ -754,6 +834,7 @@ export function createAnimator(map, ui, {
       playInternal();
     },
     pause() {
+      transitionGeneration += 1;
       playing = false;
       lastFrame = 0;
       playbackClock = null;
@@ -765,7 +846,7 @@ export function createAnimator(map, ui, {
       if (route) updateHUD(getCurrentFrameState(getCurrentSample(), 0));
     },
     reset() {
-      // Seek to start only — never re-run terrain preparation.
+      // Reset to the panoramic opening frame; Play performs the fly-in again.
       this.pause();
       if (!route) return;
       route.resetTraveledCache?.();
@@ -774,13 +855,14 @@ export function createAnimator(map, ui, {
       resetPlaybackCameraGuards();
       const frameState = getCurrentFrameState();
       syncMapState(frameState);
-      applyCameraFrame(
-        map,
-        resolveCameraFrameForView(frameState, { continuous: false }),
-        { continuous: false },
-      );
+      showOverview();
       updateHUD(frameState);
     },
+    showOverview,
+    focusStart,
+    playOutro,
+    getIntroDurationMs: () => INTRO_DURATION_MS,
+    getOutroDurationMs: () => OUTRO_DURATION_MS,
     scrubPreview(value) {
       if (!route) return;
       applyTimelinePosition(value);
