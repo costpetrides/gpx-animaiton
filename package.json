@@ -17,7 +17,8 @@
     "validate:gpx": "node scripts/validate-gpx-suite.mjs"
   },
   "dependencies": {
-    "maplibre-gl": "^5.6.0"
+    "maplibre-gl": "^5.6.0",
+    "mp4-muxer": "^5.2.2"
   },
   "devDependencies": {
     "@xmldom/xmldom": "^0.9.10",
