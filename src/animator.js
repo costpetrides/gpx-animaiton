@@ -165,8 +165,13 @@ export function createAnimator(map, ui, {
       isTerrainDegraded: () => terrainDegraded || mapViewMode === '2d',
       restoreOverview: () => {
         if (!route) return;
-        const bounds = renderer.getBounds(route);
-        if (bounds) fitOverview(map, bounds, { maxElevationM: getRouteMaxElevation() });
+        const frameState = getCurrentFrameState();
+        if (!frameState) return;
+        applyCameraFrame(
+          map,
+          resolveCameraFrameForView(frameState, { continuous: false }),
+          { continuous: false },
+        );
       },
       renderFirstFrame: () => {
         const frameState = getCurrentFrameState();
@@ -371,20 +376,18 @@ export function createAnimator(map, ui, {
     }
   }
 
-  function applyInitialRouteView(frameState, { fitOnLoad = true } = {}) {
+  function applyInitialRouteView(frameState) {
     resetPlaybackCameraGuards();
     syncTerrainHealth(frameState);
-    const routeBounds = renderer.getBounds(route);
-    const maxElevationM = getRouteMaxElevation();
 
-    if (fitOnLoad && routeBounds) {
-      // Always start with a stable top-down overview so the route is visible
-      // while map tiles and terrain DEM load in the background.
-      fitOverview(map, routeBounds, { maxElevationM });
-    } else {
-      applyCameraFrame(map, resolveCameraFrameForView(frameState, { continuous: false }),
-      { continuous: false });
-    }
+    // Start directly at the first playback camera pose. There is no opening
+    // panorama and no opening fly-in; the only overview transition is the
+    // cinematic zoom-out after the route finishes.
+    applyCameraFrame(
+      map,
+      resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false },
+    );
 
     refreshProgressLayers(frameState, true);
     map.triggerRepaint();
@@ -752,8 +755,12 @@ export function createAnimator(map, ui, {
       setPlaybackState({ animTime: 0, animDistance: 0 });
       const frameState = getCurrentFrameState();
       syncMapState(frameState);
+      applyCameraFrame(
+        map,
+        resolveCameraFrameForView(frameState, { continuous: false }),
+        { continuous: false },
+      );
       updateHUD(frameState);
-      showOverview();
     }
     if (!cameraState.shot) {
       cameraState = createCameraRuntimeState(
@@ -900,7 +907,7 @@ export function createAnimator(map, ui, {
       if (route) updateHUD(getCurrentFrameState(getCurrentSample(), 0));
     },
     reset() {
-      // Reset to the panoramic opening frame; Play performs the fly-in again.
+      // Reset directly to the first playback camera pose.
       this.pause();
       if (!route) return;
       route.resetTraveledCache?.();
@@ -909,7 +916,11 @@ export function createAnimator(map, ui, {
       resetPlaybackCameraGuards();
       const frameState = getCurrentFrameState();
       syncMapState(frameState);
-      showOverview();
+      applyCameraFrame(
+        map,
+        resolveCameraFrameForView(frameState, { continuous: false }),
+        { continuous: false },
+      );
       updateHUD(frameState);
     },
     showOverview,
