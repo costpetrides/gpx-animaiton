@@ -1,6 +1,6 @@
 export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null } = {}) {
   const ctx = canvas.getContext('2d');
-  let elevations = [];
+  let samples = [];
   let progress = 0;
   let isDragging = false;
   let cachedPoints = null;
@@ -50,8 +50,19 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
     draw();
   }
 
-  function setData(eles) {
-    elevations = eles.filter((e) => e != null && !isNaN(e));
+  function setData(data) {
+    samples = (data || [])
+      .map((entry, index, array) => (
+        typeof entry === 'number'
+          ? {
+              elevation: entry,
+              progress: array.length > 1 ? index / (array.length - 1) : 0,
+            }
+          : entry
+      ))
+      .filter((entry) => Number.isFinite(entry?.elevation))
+      .sort((a, b) => a.progress - b.progress);
+    cachedPoints = null;
     draw();
   }
 
@@ -61,18 +72,18 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
   }
 
   function buildPointCache(w, h) {
-    if (!elevations.length) {
+    if (!samples.length) {
       cachedPoints = null;
       return;
     }
 
-    cachedMin = Math.min(...elevations);
-    cachedMax = Math.max(...elevations);
+    cachedMin = Math.min(...samples.map((sample) => sample.elevation));
+    cachedMax = Math.max(...samples.map((sample) => sample.elevation));
     const range = cachedMax - cachedMin || 1;
     const pad = 8;
 
     cachedPoints = elevations.map((e, i) => ({
-      x: pad + (i / (elevations.length - 1)) * (w - pad * 2),
+      x: pad + (i / (samples.length - 1)) * (w - pad * 2),
       y: pad + (1 - (e - cachedMin) / range) * (h - pad * 2),
     }));
     cachedSize = { w, h };
@@ -105,7 +116,7 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
     const h = canvas.clientHeight;
     if (w <= 0 || h <= 0) return;
 
-    if (elevations.length < 2) {
+    if (samples.length < 2) {
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = 'rgba(139,149,168,0.5)';
       ctx.font = '11px system-ui, sans-serif';
@@ -121,7 +132,7 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
     ctx.clearRect(0, 0, w, h);
     drawStaticChart(w, h);
 
-    const idx = Math.floor(progress * (elevations.length - 1));
+    const idx = Math.floor(progress * (samples.length - 1));
     const cx = cachedPoints[idx].x;
     const elevationValue = elevations[idx];
 
@@ -162,7 +173,7 @@ export function createElevationChart(canvas, { onScrub = null, onScrubEnd = null
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
 
-    if (elevations.length < 2) {
+    if (samples.length < 2) {
       cachedPoints = null;
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = 'rgba(139,149,168,0.5)';
