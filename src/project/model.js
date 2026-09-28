@@ -90,7 +90,7 @@ export function createEmptyProjectDocument() {
         terrainEnabled: true,
         terrain: {
           quality: 'balanced',
-          exaggeration: 1.6,
+          exaggeration: 1.5,
         },
       },
       layers: {
@@ -113,7 +113,7 @@ export function createEmptyProjectDocument() {
         // TrailReplay semantics: 0 = stable/cinematic, 1 = reactive.
         cameraStability: 0.3,
         followBehindZoomLevel: 33,
-        // Balanced prefetch: load corridor terrain before Play (cinematic quality).
+        // Balanced preparation uses opening warmup + predictive offscreen warming.
         prepareQuality: 'balanced',
       },
       export: {
