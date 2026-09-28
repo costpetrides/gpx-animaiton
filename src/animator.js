@@ -528,6 +528,51 @@ export function createAnimator(map, ui, {
     }
   }
 
+  function rebuildAfterStyleChange() {
+    if (!route) {
+      renderer.resetStyleState?.();
+      renderer.addLayers?.();
+      setMap3dMode(map, mapViewMode === '3d' && !terrainDegraded, {
+        pitch: mapViewMode === '3d' ? 58 : 0,
+        bearing: map.getBearing?.() ?? 0,
+        exaggeration: getTerrainExaggeration(),
+        buildings: false,
+        animate: false,
+      });
+      syncMap3dGestures(map, mapViewMode === '3d');
+      return;
+    }
+
+    renderer.resetStyleState?.();
+    renderer.addLayers();
+
+    const trackStyle = getTrackStyle?.();
+    if (trackStyle) renderer.applyTrackStyle?.(trackStyle);
+
+    // Recreate terrain/hillshade on the freshly-loaded basemap before drawing
+    // the current route frame.
+    setMap3dMode(map, mapViewMode === '3d' && !terrainDegraded, {
+      pitch: mapViewMode === '3d' ? 58 : 0,
+      bearing: map.getBearing?.() ?? 0,
+      exaggeration: getTerrainExaggeration(),
+      buildings: false,
+      animate: false,
+    });
+    syncMap3dGestures(map, mapViewMode === '3d');
+
+    resetPlaybackCameraGuards();
+    const frameState = getCurrentFrameState();
+    syncMapState(frameState);
+    refreshProgressLayers(frameState, true);
+    applyCameraFrame(
+      map,
+      resolveCameraFrameForView(frameState, { continuous: false }),
+      { continuous: false },
+    );
+    updateHUD(frameState);
+    map.triggerRepaint?.();
+  }
+
   function whenMapReady(fn) {
     renderer.whenReady(fn);
   }
@@ -888,6 +933,7 @@ export function createAnimator(map, ui, {
 
   return {
     addLayers,
+    rebuildAfterStyleChange,
     load,
     play() {
       if (!route || !playbackPreparer.isArmed()) return;
