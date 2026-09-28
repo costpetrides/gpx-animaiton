@@ -17,6 +17,8 @@ export class RoutePath {
       this.cumDist.push(this.totalDistance);
     }
 
+    this.elevationGain = buildFilteredElevationGain(this.points);
+
     this.hasTime =
       rawPoints.some((p) => p.time) &&
       rawPoints[0].time &&
@@ -110,6 +112,39 @@ export class RoutePath {
     if (coords.length < 2) coords.push([...coords[0]]);
     this._traveledCache = { dist, coords, segIndex };
     return coords;
+  }
+
+  elevationGainAtDistance(dist) {
+    if (!this.elevationGain?.length) return 0;
+    const target = Math.max(0, Math.min(dist, this.totalDistance));
+    let low = 0;
+    let high = this.cumDist.length - 1;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (this.cumDist[mid] < target) low = mid + 1;
+      else high = mid;
+    }
+    return this.elevationGain[Math.max(0, low - (this.cumDist[low] > target ? 1 : 0))] ?? 0;
+  }
+
+  elevationProfile(maxSamples = 900) {
+    if (!this.points.length) return [];
+    const stride = Math.max(1, Math.ceil(this.points.length / maxSamples));
+    const samples = [];
+    for (let i = 0; i < this.points.length; i += stride) {
+      const point = this.points[i];
+      if (!Number.isFinite(point.ele)) continue;
+      samples.push({
+        elevation: point.ele,
+        progress: this.totalDistance > 0 ? this.cumDist[i] / this.totalDistance : 0,
+      });
+    }
+    const lastIndex = this.points.length - 1;
+    const last = this.points[lastIndex];
+    if (Number.isFinite(last?.ele) && samples[samples.length - 1]?.progress !== 1) {
+      samples.push({ elevation: last.ele, progress: 1 });
+    }
+    return samples;
   }
 
   resetTraveledCache() {
@@ -212,4 +247,47 @@ function closestDistance(route, point) {
 export function estimateSpeed(route, dist, prevDist, dt) {
   if (dt > 0 && prevDist != null) return (dist - prevDist) / dt;
   return 0;
+}
+
+
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+function buildFilteredElevationGain(points, thresholdMeters = 10) {
+  if (!points?.length) return [];
+
+  const filtered = points.map((_, index) => {
+    const values = [];
+    for (let offset = -2; offset <= 2; offset += 1) {
+      const source = points[Math.max(0, Math.min(points.length - 1, index + offset))];
+      if (Number.isFinite(source?.ele)) values.push(source.ele);
+    }
+    return values.length ? median(values) : null;
+  });
+
+  const cumulative = new Array(points.length).fill(0);
+  const firstIndex = filtered.findIndex(Number.isFinite);
+  if (firstIndex < 0) return cumulative;
+
+  let acceptedElevation = filtered[firstIndex];
+  let gain = 0;
+  for (let index = firstIndex + 1; index < filtered.length; index += 1) {
+    const elevation = filtered[index];
+    if (!Number.isFinite(elevation)) {
+      cumulative[index] = gain;
+      continue;
+    }
+    const difference = elevation - acceptedElevation;
+    if (difference >= thresholdMeters) {
+      gain += difference;
+      acceptedElevation = elevation;
+    } else if (difference <= -thresholdMeters) {
+      acceptedElevation = elevation;
+    }
+    cumulative[index] = gain;
+  }
+  for (let index = 1; index < firstIndex; index += 1) cumulative[index] = 0;
+  return cumulative;
 }
