@@ -238,11 +238,12 @@ export function createPlaybackPrepareCoordinator(deps) {
         if (generation !== prepareGeneration) return;
 
         ctx.setAnimDistance(ctx.getAnimDistance());
-        ctx.applyPlaybackCamera();
+        if (!isInitial) ctx.applyPlaybackCamera();
       }
 
       reportPhase('first_frame', { reason, plan });
-      ctx.applyPlaybackCamera();
+      if (isInitial) ctx.restoreOverview?.();
+      else ctx.applyPlaybackCamera();
       ctx.renderFirstFrame();
       if (generation !== prepareGeneration) return;
 
@@ -263,7 +264,8 @@ export function createPlaybackPrepareCoordinator(deps) {
       try {
         const ctx = getContext();
         ctx.degradeTerrain?.();
-        ctx.applyPlaybackCamera();
+        if (intent === PREPARE_INTENT.INITIAL) ctx.restoreOverview?.();
+        else ctx.applyPlaybackCamera();
         ctx.renderFirstFrame();
         await armPrepared(ctx, generation, reason, { isDegraded: true, plan });
         lastError = err?.message || String(err);
