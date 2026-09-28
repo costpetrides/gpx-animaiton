@@ -33,13 +33,10 @@ const QUALITY_BASE = {
       deadlineMs: 0,
     },
     fullRoute: {
-      // Warm the real playback camera along the full film before Play so
-      // vector + terrain detail is already cached during camera motion.
-      // Long routes are capped at 32 sampled views.
-      enabled: true,
-      sampleStepM: 350,
-      maxSamples: 32,
-      deadlineMs: 18000,
+      enabled: false,
+      sampleStepM: 500,
+      maxSamples: 0,
+      deadlineMs: 0,
     },
   },
   [PREPARE_QUALITY.BALANCED]: {
