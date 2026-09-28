@@ -18,6 +18,12 @@ export function createFrameState({
   const timeline = progress * 1000;
   const progressPct = Math.round(progress * 100);
   const cadenceTick = Math.floor(playbackFrame.animTime * 15);
+  const recordedElapsedSec =
+    route.hasTime &&
+    Number.isFinite(playbackFrame.sample?.point?.time) &&
+    Number.isFinite(route.raw?.[0]?.time)
+      ? Math.max(0, (playbackFrame.sample.point.time - route.raw[0].time) / 1000)
+      : playbackFrame.animTime;
 
   return {
     routeName,
@@ -40,6 +46,7 @@ export function createFrameState({
       speed: formatSpeed(playbackFrame.currentSpeed),
       elevation: formatElevation(playbackFrame.sample?.point?.ele),
       elevationGain: formatElevation(route.elevationGainAtDistance?.(playbackFrame.animDistance) ?? 0),
+      recordedTime: formatDuration(recordedElapsedSec),
       progress: progressPct,
       duration: formatDuration(playbackFrame.duration),
       timeline,
