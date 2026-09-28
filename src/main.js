@@ -15,7 +15,6 @@ import {
   applyCinematicPresentation,
   attributionControlOptions,
   collapseMapAttribution,
-  setMapStyle,
   syncMap3dGestures,
 } from './mapLibreShared.js';
 import { createAnimator } from './animator.js';
@@ -54,9 +53,13 @@ function getRouteDocument() {
   return selectRouteDocument(getProjectState());
 }
 
+const persistentBasemap = await buildPersistentOpenFreeMapStyle(
+  DEFAULT_MAP_STYLE_ID,
+);
+
 const map = new maplibregl.Map({
   container: 'map',
-  style: getMapStyleUrl(DEFAULT_MAP_STYLE_ID),
+  style: persistentBasemap.style,
   center: [34.01, 35.05],
   zoom: 13,
   pitch: 0,
@@ -116,7 +119,14 @@ function setNavVisible(visible) {
 }
 
 function ensureCinematicMapLook() {
-  applyCinematicPresentation(map, { hideLabels: true, muteRoads: true });
+  const activeBasemapStyleId = resolveMapStyle(
+    getProjectState().document.project.map?.styleKey,
+  ).id;
+  applyCinematicPresentation(map, {
+    hideLabels: true,
+    muteRoads: true,
+    activeBasemapStyleId,
+  });
   cinematicStyleApplied = true;
 }
 
@@ -548,38 +558,28 @@ mapStyleSelect?.addEventListener('change', () => {
     payload: { styleKey: nextStyle.id },
   });
 
-  mapStyleSelect.disabled = true;
-  setPlaybackControlsEnabled(false);
+  // TrailReplay architecture: the MapLibre style graph never changes.
+  // Switch only the OpenFreeMap presentation layers; route/actor/terrain and
+  // camera state stay alive throughout the operation.
+  applyPersistentBasemapPresentation(
+    map,
+    persistentBasemap.presentations,
+    nextStyle.id,
+  );
+
+  // Reassert film presentation and 3D ordering against the now-visible
+  // basemap group. No setStyle(), no route rebuild, no terrain teardown.
+  animator.setTerrainEnabled?.(true);
+  animator.refreshCamera?.();
+  scheduleCinematicMapLook();
+
+  shell.setStatus(
+    getRouteDocument()
+      ? 'Preview ready — press Play'
+      : 'Drop a GPX to create a cinematic trail film',
+  );
+  renderProjectState();
   updateExportEnabled();
-  shell.setStatus(`Loading ${nextStyle.label} map…`);
-
-  setMapStyle(map, nextStyle.styleUrl, async () => {
-    try {
-      // TrailReplay keeps the playback stack persistent while basemap
-      // presentation changes. Our OpenFreeMap styles are full vector styles,
-      // so wait until our persistent route/actor/terrain stack has been
-      // reconstructed successfully before continuing.
-      const rebuilt = await animator.rebuildAfterStyleChange?.();
-      if (rebuilt === false) {
-        throw new Error('Could not rebuild route/terrain on the new map style');
-      }
-
-      scheduleCinematicMapLook();
-
-      if (getRouteDocument()) {
-        animator.reprepare?.('style');
-      } else {
-        shell.setStatus('Drop a GPX to create a cinematic trail film');
-      }
-    } catch (error) {
-      console.error('Map style switch failed:', error);
-      shell.setStatus(`Map style failed: ${error?.message || error}`);
-    } finally {
-      mapStyleSelect.disabled = false;
-      renderProjectState();
-      updateExportEnabled();
-    }
-  });
 });
 
 speedSelect.addEventListener('change', () => {
