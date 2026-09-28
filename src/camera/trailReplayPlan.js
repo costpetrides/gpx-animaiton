@@ -1,25 +1,26 @@
 /**
- * Deterministic follow-behind camera plan inspired by TrailReplay's good
- * practices, reimplemented for this project's MapLibre/OpenFreeMap stack.
+ * TrailReplay-style automatic follow-behind camera plan, adapted to this
+ * project's MapLibre/OpenFreeMap stack.
  *
- * Goals:
- * - same pose for preview and export at the same route progress
- * - no per-frame terrain/director candidate hunting
- * - symmetric route smoothing (no temporal lag)
- * - stable route bearing from averaged route positions
- * - terrain affects framing gently; terrain collision remains a separate safety
+ * The pose is a pure function of route + progress so preview and export see
+ * the same target. Terrain only nudges zoom/pitch; DEM clearance remains a
+ * separate safety layer in camera.js.
  */
 
-const ANCHOR_HALF_WINDOW_PROGRESS = 0.018;
-const BEARING_HALF_WINDOW_PROGRESS = 0.008;
-const BEARING_LOOK_AHEAD_PROGRESS = 0.028;
+const PLAYBACK_ZOOM = 14.5;
+const PLAYBACK_PITCH = 40;
+const MIN_ZOOM = 8;
+const MIN_PITCH = 15;
 
-const BASE_ZOOM = 15.15;
-const BASE_PITCH = 49;
-const MIN_ZOOM = 14.35;
-const MIN_PITCH = 43;
-const MAX_TERRAIN_ZOOM_OUT = 0.65;
-const MAX_TERRAIN_PITCH_REDUCE = 4;
+const MAX_ZOOM_OUT = 0.8;
+const MAX_PITCH_REDUCE = 4;
+const LOOK_AROUND_PROGRESS = 0.15;
+const FULL_RISK_GRADIENT = 0.12;
+const ELEVATION_RISK_METERS = 1200;
+const ELEVATION_RISK_WEIGHT = 0.5;
+
+const BEARING_FROM_WINDOW = 0.006;
+const BEARING_LOOK_AHEAD = 0.024;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -40,85 +41,97 @@ function bearingBetween(a, b) {
   return normalizeBearing((Math.atan2(y, x) * 180) / Math.PI);
 }
 
-function samplePoint(route, progress) {
+function sample(route, progress) {
   if (!route) return null;
   const p = clamp(progress, 0, 1);
   return route.atDistance(p * route.totalDistance)?.point || null;
 }
 
-function averageRoutePoint(route, progress, halfWindow) {
-  const offsets = [-1, -0.66, -0.33, 0, 0.33, 0.66, 1];
+function centroid(route, progress, halfWindow) {
+  const offsets = [-1, -0.5, 0, 0.5, 1];
   let lat = 0;
   let lng = 0;
-  let ele = 0;
-  let eleCount = 0;
   let count = 0;
 
   for (const offset of offsets) {
-    const point = samplePoint(route, progress + offset * halfWindow);
+    const point = sample(route, progress + offset * halfWindow);
     if (!point) continue;
     lat += point.lat;
     lng += point.lng;
-    if (Number.isFinite(point.ele)) {
-      ele += point.ele;
-      eleCount += 1;
-    }
     count += 1;
   }
 
-  if (!count) return samplePoint(route, progress);
-  return {
-    lat: lat / count,
-    lng: lng / count,
-    ele: eleCount ? ele / eleCount : null,
-  };
+  if (!count) return sample(route, progress);
+  return { lat: lat / count, lng: lng / count };
 }
 
 function stableRouteBearing(route, progress) {
-  const from = averageRoutePoint(
+  const from = centroid(route, progress, BEARING_FROM_WINDOW);
+  const to = centroid(
     route,
-    progress - BEARING_LOOK_AHEAD_PROGRESS * 0.35,
-    BEARING_HALF_WINDOW_PROGRESS,
-  );
-  const to = averageRoutePoint(
-    route,
-    progress + BEARING_LOOK_AHEAD_PROGRESS,
-    BEARING_HALF_WINDOW_PROGRESS,
+    Math.min(1, progress + BEARING_LOOK_AHEAD),
+    BEARING_FROM_WINDOW,
   );
   if (!from || !to) return 0;
+  if (from.lat === to.lat && from.lng === to.lng) {
+    const here = sample(route, progress);
+    const ahead = sample(route, Math.min(1, progress + 0.01));
+    if (!here || !ahead) return 0;
+    return bearingBetween(here, ahead);
+  }
   return bearingBetween(from, to);
 }
 
+function routeBaseElevation(route) {
+  if (Number.isFinite(route?._trailReplayBaseElevation)) {
+    return route._trailReplayBaseElevation;
+  }
+  const elevations = (route?.raw || [])
+    .map((point) => point.ele)
+    .filter(Number.isFinite);
+  const base = elevations.length ? Math.min(...elevations) : 0;
+  if (route) route._trailReplayBaseElevation = base;
+  return base;
+}
+
 function terrainRisk(route, progress) {
-  const center = samplePoint(route, progress);
-  const ahead = samplePoint(route, progress + 0.035);
-  const behind = samplePoint(route, progress - 0.02);
-  if (!center || !ahead || !behind) return 0;
-  if (![center.ele, ahead.ele, behind.ele].every(Number.isFinite)) return 0;
+  const center = sample(route, progress);
+  if (!center) return 0;
 
-  const localRelief = Math.max(
-    Math.abs(ahead.ele - center.ele),
-    Math.abs(center.ele - behind.ele),
-    Math.abs(ahead.ele - behind.ele) * 0.5,
-  );
+  const elevation = Number.isFinite(center.ele) ? center.ele : routeBaseElevation(route);
+  const relativeElevation = Math.max(0, elevation - routeBaseElevation(route));
+  const elevationRisk = Math.min(relativeElevation / ELEVATION_RISK_METERS, 1);
 
-  // Dimensionless-ish local relief proxy with a conservative cap. This only
-  // nudges the authored framing; the DEM terrain guard handles true clearance.
-  return clamp(localRelief / 170, 0, 1);
+  const behindProgress = clamp(progress - LOOK_AROUND_PROGRESS, 0, 1);
+  const aheadProgress = clamp(progress + LOOK_AROUND_PROGRESS, 0, 1);
+  const behind = sample(route, behindProgress);
+  const ahead = sample(route, aheadProgress);
+
+  let steepnessRisk = 0;
+  if (behind && ahead && Number.isFinite(behind.ele) && Number.isFinite(ahead.ele)) {
+    const run = Math.max(
+      1,
+      (aheadProgress - behindProgress) * Math.max(1, route.totalDistance),
+    );
+    const gradient = Math.abs(ahead.ele - behind.ele) / run;
+    steepnessRisk = Math.min(gradient / FULL_RISK_GRADIENT, 1);
+  }
+
+  return Math.max(elevationRisk * ELEVATION_RISK_WEIGHT, steepnessRisk);
 }
 
 export function getTrailReplayCameraPose(route, progress) {
   if (!route) return null;
   const p = clamp(progress, 0, 1);
-  const center = averageRoutePoint(route, p, ANCHOR_HALF_WINDOW_PROGRESS);
+  const center = sample(route, p);
   if (!center) return null;
 
   const risk = terrainRisk(route, p);
   return {
     center,
     bearing: stableRouteBearing(route, p),
-    pitch: Math.max(MIN_PITCH, BASE_PITCH - risk * MAX_TERRAIN_PITCH_REDUCE),
-    zoom: Math.max(MIN_ZOOM, BASE_ZOOM - risk * MAX_TERRAIN_ZOOM_OUT),
+    zoom: Math.max(MIN_ZOOM, PLAYBACK_ZOOM - risk * MAX_ZOOM_OUT),
+    pitch: Math.max(MIN_PITCH, PLAYBACK_PITCH - risk * MAX_PITCH_REDUCE),
   };
 }
 
