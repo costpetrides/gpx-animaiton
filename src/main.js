@@ -18,6 +18,7 @@ import {
   applyCinematicPresentation,
   attributionControlOptions,
   collapseMapAttribution,
+  enforceBuildingsHidden,
   syncMap3dGestures,
 } from './mapLibreShared.js';
 import { createAnimator } from './animator.js';
@@ -569,6 +570,7 @@ mapStyleSelect?.addEventListener('change', () => {
     persistentBasemap.presentations,
     nextStyle.id,
   );
+  enforceBuildingsHidden(map);
 
   // Reassert film presentation and 3D ordering against the now-visible
   // basemap group. No setStyle(), no route rebuild, no terrain teardown.
