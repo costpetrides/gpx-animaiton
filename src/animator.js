@@ -529,9 +529,17 @@ export function createAnimator(map, ui, {
   }
 
   function rebuildAfterStyleChange() {
-    if (!route) {
-      renderer.resetStyleState?.();
-      renderer.addLayers?.();
+    renderer.resetStyleState?.();
+
+    const rebuild = () => {
+      if (!map.isStyleLoaded?.()) return false;
+
+      const ready = renderer.addLayers?.() !== false;
+      if (!ready) return false;
+
+      const trackStyle = getTrackStyle?.();
+      if (trackStyle) renderer.applyTrackStyle?.(trackStyle);
+
       setMap3dMode(map, mapViewMode === '3d' && !terrainDegraded, {
         pitch: mapViewMode === '3d' ? 58 : 0,
         bearing: map.getBearing?.() ?? 0,
@@ -540,37 +548,52 @@ export function createAnimator(map, ui, {
         animate: false,
       });
       syncMap3dGestures(map, mapViewMode === '3d');
-      return;
-    }
 
-    renderer.resetStyleState?.();
-    renderer.addLayers();
+      if (!route) {
+        map.triggerRepaint?.();
+        return true;
+      }
 
-    const trackStyle = getTrackStyle?.();
-    if (trackStyle) renderer.applyTrackStyle?.(trackStyle);
+      resetPlaybackCameraGuards();
+      const frameState = getCurrentFrameState();
+      syncMapState(frameState);
+      refreshProgressLayers(frameState, true);
 
-    // Recreate terrain/hillshade on the freshly-loaded basemap before drawing
-    // the current route frame.
-    setMap3dMode(map, mapViewMode === '3d' && !terrainDegraded, {
-      pitch: mapViewMode === '3d' ? 58 : 0,
-      bearing: map.getBearing?.() ?? 0,
-      exaggeration: getTerrainExaggeration(),
-      buildings: false,
-      animate: false,
+      applyCameraFrame(
+        map,
+        resolveCameraFrameForView(frameState, { continuous: false }),
+        { continuous: false },
+      );
+      updateHUD(frameState);
+      map.triggerRepaint?.();
+      return renderer.hasPlaybackLayers?.() ?? true;
+    };
+
+    if (rebuild()) return Promise.resolve(true);
+
+    // Some styles report style.load before every internal source is fully
+    // attachable. Retry on rendered frames instead of leaving a half-built
+    // map. This mirrors TrailReplay's "setup when map is ready" discipline.
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const retry = () => {
+        attempts += 1;
+        try {
+          if (rebuild()) {
+            resolve(true);
+            return;
+          }
+        } catch {
+          // Keep retrying while the style graph settles.
+        }
+        if (attempts >= 120) {
+          resolve(false);
+          return;
+        }
+        requestAnimationFrame(retry);
+      };
+      requestAnimationFrame(retry);
     });
-    syncMap3dGestures(map, mapViewMode === '3d');
-
-    resetPlaybackCameraGuards();
-    const frameState = getCurrentFrameState();
-    syncMapState(frameState);
-    refreshProgressLayers(frameState, true);
-    applyCameraFrame(
-      map,
-      resolveCameraFrameForView(frameState, { continuous: false }),
-      { continuous: false },
-    );
-    updateHUD(frameState);
-    map.triggerRepaint?.();
   }
 
   function whenMapReady(fn) {
