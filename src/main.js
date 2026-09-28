@@ -553,12 +553,17 @@ mapStyleSelect?.addEventListener('change', () => {
   updateExportEnabled();
   shell.setStatus(`Loading ${nextStyle.label} map…`);
 
-  setMapStyle(map, nextStyle.styleUrl, () => {
+  setMapStyle(map, nextStyle.styleUrl, async () => {
     try {
-      // TrailReplay keeps basemap presentation separate from playback
-      // overlays. Our remote OpenFreeMap styles require setStyle(), so perform
-      // an explicit hard rebuild of the persistent film stack after style.load.
-      animator.rebuildAfterStyleChange?.();
+      // TrailReplay keeps the playback stack persistent while basemap
+      // presentation changes. Our OpenFreeMap styles are full vector styles,
+      // so wait until our persistent route/actor/terrain stack has been
+      // reconstructed successfully before continuing.
+      const rebuilt = await animator.rebuildAfterStyleChange?.();
+      if (rebuilt === false) {
+        throw new Error('Could not rebuild route/terrain on the new map style');
+      }
+
       scheduleCinematicMapLook();
 
       if (getRouteDocument()) {
@@ -566,6 +571,9 @@ mapStyleSelect?.addEventListener('change', () => {
       } else {
         shell.setStatus('Drop a GPX to create a cinematic trail film');
       }
+    } catch (error) {
+      console.error('Map style switch failed:', error);
+      shell.setStatus(`Map style failed: ${error?.message || error}`);
     } finally {
       mapStyleSelect.disabled = false;
       renderProjectState();
