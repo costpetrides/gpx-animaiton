@@ -67,10 +67,10 @@ const QUALITY_BASE = {
       deadlineMs: 30000,
     },
     fullRoute: {
-      enabled: true,
-      sampleStepM: 400,
-      maxSamples: 80,
-      deadlineMs: 60000,
+      enabled: false,
+      sampleStepM: 500,
+      maxSamples: 0,
+      deadlineMs: 0,
     },
   },
 };
