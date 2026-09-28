@@ -436,8 +436,7 @@ export function getOverviewCameraOptions(map, bounds, { maxElevationM = null } =
   // MapLibre's camera `elevation` is the elevation of the map CENTER
   // (look-at point), not camera altitude. The old overview code added a value
   // derived from route span here, which could lift the center several
-  // kilometres above terrain on a long GPX and make the 1.5 s intro feel like
-  // a violent dive back to the trail.
+  // kilometres above terrain on a long GPX and distort overview framing.
   //
   // TrailReplay keeps the center tied to the terrain surface. Do the same:
   // use the DEM elevation at the overview center and let zoom determine how
