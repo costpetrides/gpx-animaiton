@@ -144,35 +144,6 @@ export function enforceBuildingsHidden(map) {
   }
 }
 
-function ensureHillshade(map) {
-  const beforeId = findFirstVisibleSymbolLayerId(map);
-
-  if (map.getLayer(HILLSHADE_LAYER_ID)) {
-    map.setLayoutProperty(HILLSHADE_LAYER_ID, 'visibility', 'visible');
-    try {
-      if (beforeId) map.moveLayer(HILLSHADE_LAYER_ID, beforeId);
-    } catch {
-      // Layer ordering can briefly be unavailable while style state settles.
-    }
-    return;
-  }
-
-  const layer = {
-    id: HILLSHADE_LAYER_ID,
-    type: 'hillshade',
-    source: TERRAIN_SOURCE_ID,
-    layout: { visibility: 'visible' },
-    paint: {
-      'hillshade-exaggeration': 0.55,
-      'hillshade-shadow-color': '#0f172a',
-      'hillshade-highlight-color': '#f8fafc',
-      'hillshade-accent-color': '#64748b',
-    },
-  };
-  if (beforeId) map.addLayer(layer, beforeId);
-  else map.addLayer(layer);
-}
-
 /**
  * Enable/disable 3D terrain on the current basemap.
  *
