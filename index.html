@@ -67,12 +67,37 @@
           <section class="side-section">
             <h2>Preview</h2>
 
-            <label class="field-label" for="follow-distance">Camera distance</label>
-            <div class="slider-row">
-              <input id="follow-distance" type="range" min="0" max="7" step="1" value="3" />
-              <span class="mono" id="follow-distance-label">Medium</span>
+            <label class="field-label" for="camera-mode">Camera mode</label>
+            <select id="camera-mode">
+              <option value="cinematic" selected>Cinematic</option>
+              <option value="follow-behind">Follow behind</option>
+              <option value="follow">Follow</option>
+              <option value="overview">Overview</option>
+            </select>
+            <p class="field-hint" id="camera-mode-hint">
+              Cinematic smooths the known route ahead and behind the marker, so fast switchbacks do not whip the frame.
+            </p>
+
+            <div id="follow-distance-group">
+              <label class="field-label" for="follow-distance">Camera distance</label>
+              <div class="slider-row">
+                <input id="follow-distance" type="range" min="0" max="7" step="1" value="3" />
+                <span class="mono" id="follow-distance-label">Medium</span>
+              </div>
+              <p class="field-hint">Far → very close changes zoom and pitch together.</p>
             </div>
-            <p class="field-hint">TrailReplay-style follow-behind framing: distance changes zoom and pitch together.</p>
+
+            <div id="camera-stability-group">
+              <label class="field-label" for="camera-stability">Camera stability</label>
+              <div class="slider-row">
+                <input id="camera-stability" type="range" min="0" max="1" step="0.05" value="0.3" />
+                <span class="mono" id="camera-stability-label">Stable</span>
+              </div>
+              <div class="range-end-labels">
+                <span>Stable</span>
+                <span>Reactive</span>
+              </div>
+            </div>
 
             <label class="field-label" for="speed-select">Speed</label>
             <select id="speed-select">
@@ -97,7 +122,7 @@
               <div><span>Distance</span><strong id="live-distance">—</strong></div>
               <div><span>Gain</span><strong id="live-gain">—</strong></div>
               <div><span>Altitude</span><strong id="live-elevation">—</strong></div>
-              <div><span>Progress</span><strong id="live-progress">0%</strong></div>
+              <div><span>GPX time</span><strong id="live-time">00:00</strong></div>
             </div>
 
             <div class="elevation-profile-wrap hidden" id="elevation-profile-wrap">
