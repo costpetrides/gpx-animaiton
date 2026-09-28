@@ -317,9 +317,38 @@ export function applyShot(
       const signedDelta = ((rawDelta + 540) % 360) - 180;
 
       const absDelta = Math.abs(signedDelta);
-      if (absDelta >= bearingGuard.minDeltaDeg) {
-        const clampedDelta = Math.sign(signedDelta) * Math.min(absDelta, bearingGuard.maxDeltaDegPerUpdate);
-        bearingGuard.lastBearingDeg = normalizeBearing(last + clampedDelta);
+      const stability = Math.max(
+        0,
+        Math.min(1, Number.isFinite(bearingGuard.cameraStability)
+          ? bearingGuard.cameraStability
+          : 0.3),
+      );
+      const reactivity = 0.25 + stability * 1.5;
+      const turnReactivity = reactivity >= 1
+        ? reactivity
+        : 1 - (1 - reactivity) * 0.5;
+      const deadbandScale = reactivity >= 1
+        ? 1 / reactivity
+        : Math.min(1.5, 1 / reactivity);
+      const deadband = (bearingGuard.minDeltaDeg ?? 4) * deadbandScale;
+
+      if (absDelta >= deadband) {
+        // TrailReplay practice: scale movement by simulated playback time, not
+        // by render-call count. This keeps the same turn speed at 30/60 fps
+        // and prevents large GPX routes from whipping the camera around bends.
+        const referenceFrameMs = 1000 / 60;
+        const deltaMs = Number.isFinite(bearingGuard.deltaMs)
+          ? Math.min(Math.max(bearingGuard.deltaMs, 0), referenceFrameMs * 4)
+          : referenceFrameMs;
+        const frameTimeMultiplier = deltaMs / referenceFrameMs;
+        const speed = turnReactivity * frameTimeMultiplier;
+        const maxChange = 0.85 * speed;
+        const easedChange = signedDelta * 0.03 * speed;
+        const change = Math.max(
+          -maxChange,
+          Math.min(maxChange, easedChange),
+        );
+        bearingGuard.lastBearingDeg = normalizeBearing(last + change);
       }
     }
 
