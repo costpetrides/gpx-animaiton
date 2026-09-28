@@ -128,20 +128,38 @@ export function ensureTerrainSource(map) {
   });
 }
 
-function findBuildingFillLayerIds(map) {
+function isBuildingStyleLayer(layer) {
+  if (!layer || layer.id === BUILDINGS_3D_LAYER_ID) return false;
+
+  const id = String(layer.id || '').toLowerCase();
+  const sourceLayer = String(layer['source-layer'] || '').toLowerCase();
+
+  // OpenFreeMap styles are not guaranteed to use exactly
+  // source-layer="building" for every building-related layer. Match both the
+  // vector source-layer and common building layer ids so flat fills, outlines,
+  // and any style-provided extrusions are all suppressed.
+  const buildingSource =
+    sourceLayer === 'building' ||
+    sourceLayer === 'buildings' ||
+    sourceLayer.includes('building');
+
+  const buildingId =
+    /(^|[-_ ])buildings?($|[-_ ])/i.test(id) ||
+    id.includes('building-') ||
+    id.includes('-building');
+
+  return buildingSource || buildingId;
+}
+
+function findBuildingLayerIds(map) {
   const layers = map.getStyle()?.layers || [];
   return layers
-    .filter(
-      (layer) =>
-        (layer.type === 'fill' || layer.type === 'fill-extrusion') &&
-        layer.id !== BUILDINGS_3D_LAYER_ID &&
-        layer['source-layer'] === 'building',
-    )
+    .filter((layer) => isBuildingStyleLayer(layer))
     .map((layer) => layer.id);
 }
 
-function setStyleBuildingFillsVisible(map, visible) {
-  for (const id of findBuildingFillLayerIds(map)) {
+function setStyleBuildingsVisible(map, visible) {
+  for (const id of findBuildingLayerIds(map)) {
     try {
       map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
     } catch {
@@ -173,7 +191,7 @@ function ensureHillshade(map) {
 }
 
 /**
- * Enable/disable 3D terrain + hillshade + building extrusions on the current
+ * Enable/disable 3D terrain + hillshade on the current
  * basemap. Does not change the map style — call after any style load/switch.
  * @param {import('maplibre-gl').Map} map
  * @param {boolean} enabled
@@ -236,7 +254,7 @@ export function applyMap3dMode(map, enabled, options = {}) {
     }
 
     if (buildings) {
-      setStyleBuildingFillsVisible(map, false);
+      setStyleBuildingsVisible(map, false);
       const vectorSource = findVectorSourceId(map);
       if (vectorSource && !map.getLayer(BUILDINGS_3D_LAYER_ID)) {
         const beforeId = findFirstSymbolLayerId(map);
@@ -277,7 +295,7 @@ export function applyMap3dMode(map, enabled, options = {}) {
       }
     } else {
       // Buildings are off: hide flat basemap building fills too.
-      setStyleBuildingFillsVisible(map, false);
+      setStyleBuildingsVisible(map, false);
       if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.removeLayer(BUILDINGS_3D_LAYER_ID);
     }
     return;
@@ -295,7 +313,7 @@ export function applyMap3dMode(map, enabled, options = {}) {
   map.setTerrain(null);
   if (map.getLayer(BUILDINGS_3D_LAYER_ID)) map.removeLayer(BUILDINGS_3D_LAYER_ID);
   if (map.getLayer(HILLSHADE_LAYER_ID)) map.removeLayer(HILLSHADE_LAYER_ID);
-  setStyleBuildingFillsVisible(map, false);
+  setStyleBuildingsVisible(map, false);
   if (animate) {
     map.easeTo({ pitch: 0, bearing: map.getBearing(), duration: 450 });
   }
