@@ -149,6 +149,30 @@ function reduce(state, action) {
       };
     }
 
+    case 'project/set-follow-behind-zoom-level': {
+      return {
+        ...state,
+        document: {
+          ...state.document,
+          project: stampProject({
+            ...state.document.project,
+            playback: {
+              ...state.document.project.playback,
+              followBehindZoomLevel: Math.max(
+                0,
+                Math.min(100, Number(action.payload.level) || 0),
+              ),
+            },
+          }),
+        },
+        editor: {
+          ...state.editor,
+          dirty: true,
+          lastAction: 'project/set-follow-behind-zoom-level',
+        },
+      };
+    }
+
     case 'project/set-prepare-quality': {
       return {
         ...state,
