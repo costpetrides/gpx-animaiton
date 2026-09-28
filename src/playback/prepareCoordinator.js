@@ -241,6 +241,12 @@ export function createPlaybackPrepareCoordinator(deps) {
         if (!isInitial) ctx.applyPlaybackCamera();
       }
 
+      if (isInitial && ctx.preloadOpening) {
+        reportPhase('opening_warmup', { reason, plan });
+        await ctx.preloadOpening();
+        if (generation !== prepareGeneration) return;
+      }
+
       reportPhase('first_frame', { reason, plan });
       if (isInitial) ctx.restoreOverview?.();
       else ctx.applyPlaybackCamera();
