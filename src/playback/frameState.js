@@ -39,6 +39,7 @@ export function createFrameState({
       total: formatDistance(route.totalDistance),
       speed: formatSpeed(playbackFrame.currentSpeed),
       elevation: formatElevation(playbackFrame.sample?.point?.ele),
+      elevationGain: formatElevation(route.elevationGainAtDistance?.(playbackFrame.animDistance) ?? 0),
       progress: progressPct,
       duration: formatDuration(playbackFrame.duration),
       timeline,
