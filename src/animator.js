@@ -48,6 +48,7 @@ export function createAnimator(map, ui, {
   getFollowBehindZoomLevel = () => 33,
   getCameraMode = () => 'cinematic',
   getCameraStability = () => 0.3,
+  tileWarmup = null,
 } = {}) {
   const renderer = createMapPlaybackRenderer(map);
   const probe = createPlaybackProbe({
@@ -175,6 +176,7 @@ export function createAnimator(map, ui, {
           { continuous: false },
         );
       },
+      preloadOpening: () => tileWarmup?.preloadOpening?.(),
       renderFirstFrame: () => {
         const frameState = getCurrentFrameState();
         refreshProgressLayers(frameState, true);
@@ -593,6 +595,7 @@ export function createAnimator(map, ui, {
 
     routeName = name;
     route = new RoutePath(points);
+    tileWarmup?.setRoute?.(route);
     route.resetTraveledCache?.();
     renderer.resetRouteState();
     const trackStyle = getTrackStyle?.();
@@ -676,6 +679,10 @@ export function createAnimator(map, ui, {
     }
     syncTerrainHealth(getCurrentFrameState());
     playing = true;
+    tileWarmup?.start?.();
+    tileWarmup?.updateProgress?.(
+      route.totalDistance > 0 ? animDistance / route.totalDistance : 0,
+    );
     lastFrame = 0;
     playbackClock = { wallMs: performance.now(), animSec: animTime };
     ui.setPlaying(true);
@@ -872,6 +879,9 @@ export function createAnimator(map, ui, {
       animTime = nextFrame.animTime;
       animDistance = nextFrame.animDistance;
       currentSpeed = nextFrame.currentSpeed;
+      tileWarmup?.updateProgress?.(
+        route.totalDistance > 0 ? animDistance / route.totalDistance : 0,
+      );
 
       const frameState = createFrameState({
         routeName,
@@ -920,6 +930,7 @@ export function createAnimator(map, ui, {
           return;
         }
         playing = false;
+        tileWarmup?.stop?.();
         playbackClock = null;
         stopCameraAnimation(map);
         ui.setPlaying(false);
@@ -961,6 +972,7 @@ export function createAnimator(map, ui, {
       transitionGeneration += 1;
       startCameraSeeded = false;
       playing = false;
+      tileWarmup?.stop?.();
       lastFrame = 0;
       playbackClock = null;
       currentSpeed = 0;
@@ -1175,6 +1187,7 @@ export function createAnimator(map, ui, {
       terrainStream?.clearRouteCorridor();
       route = null;
       routeName = '';
+      tileWarmup?.setRoute?.(null);
       routeReadyForPlayback = false;
       setPlaybackState({ animTime: 0, animDistance: 0 });
       cameraState = createCameraRuntimeState('cinematic', null);
