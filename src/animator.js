@@ -7,6 +7,7 @@ import {
   enableTerrain,
   fitOverview,
   flyOverview,
+  getOverviewCameraOptions,
   setMap3dMode,
   stopCameraAnimation,
 } from './camera.js';
@@ -79,6 +80,7 @@ export function createAnimator(map, ui, {
   let loopPlayback = false;
   let transitionGeneration = 0;
   let introCameraSeeded = false;
+  let exportOutroState = null;
   const trailReplayMotion = createTrailReplayMotionState();
   const INTRO_DURATION_MS = 0;
   const OUTRO_DURATION_MS = 3000;
@@ -93,9 +95,9 @@ export function createAnimator(map, ui, {
       // Corridor maxBounds block pitched framing at trail ends — release for film.
       terrainStream?.releaseCameraBounds?.();
       const frameState = getCurrentFrameState();
-      // Initial load deliberately stays on the panoramic overview. The first
-      // playback pose is reached only through the cinematic fly-in on Play.
-      if (frameState && !(reason === 'load' && animDistance < 1)) {
+      // There is no opening panorama/fly-in. Whenever preparation arms,
+      // settle on the exact current playback pose.
+      if (frameState) {
         applyCameraFrame(
           map,
           resolveCameraFrameForView(frameState, { continuous: false }),
@@ -528,74 +530,6 @@ export function createAnimator(map, ui, {
     }
   }
 
-  function rebuildAfterStyleChange() {
-    renderer.resetStyleState?.();
-
-    const rebuild = () => {
-      if (!map.isStyleLoaded?.()) return false;
-
-      const ready = renderer.addLayers?.() !== false;
-      if (!ready) return false;
-
-      const trackStyle = getTrackStyle?.();
-      if (trackStyle) renderer.applyTrackStyle?.(trackStyle);
-
-      setMap3dMode(map, mapViewMode === '3d' && !terrainDegraded, {
-        pitch: mapViewMode === '3d' ? 58 : 0,
-        bearing: map.getBearing?.() ?? 0,
-        exaggeration: getTerrainExaggeration(),
-        buildings: false,
-        animate: false,
-      });
-      syncMap3dGestures(map, mapViewMode === '3d');
-
-      if (!route) {
-        map.triggerRepaint?.();
-        return true;
-      }
-
-      resetPlaybackCameraGuards();
-      const frameState = getCurrentFrameState();
-      syncMapState(frameState);
-      refreshProgressLayers(frameState, true);
-
-      applyCameraFrame(
-        map,
-        resolveCameraFrameForView(frameState, { continuous: false }),
-        { continuous: false },
-      );
-      updateHUD(frameState);
-      map.triggerRepaint?.();
-      return renderer.hasPlaybackLayers?.() ?? true;
-    };
-
-    if (rebuild()) return Promise.resolve(true);
-
-    // Some styles report style.load before every internal source is fully
-    // attachable. Retry on rendered frames instead of leaving a half-built
-    // map. This mirrors TrailReplay's "setup when map is ready" discipline.
-    return new Promise((resolve) => {
-      let attempts = 0;
-      const retry = () => {
-        attempts += 1;
-        try {
-          if (rebuild()) {
-            resolve(true);
-            return;
-          }
-        } catch {
-          // Keep retrying while the style graph settles.
-        }
-        if (attempts >= 120) {
-          resolve(false);
-          return;
-        }
-        requestAnimationFrame(retry);
-      };
-      requestAnimationFrame(retry);
-    });
-  }
-
   function whenMapReady(fn) {
     renderer.whenReady(fn);
   }
@@ -651,6 +585,7 @@ export function createAnimator(map, ui, {
     }
 
     routeReadyForPlayback = false;
+    resetExportOutro();
     playbackPreparer.disarm();
     ui.onPlaybackDisarmed?.();
     nextPrepareFitOnLoad = fitOnLoad;
@@ -759,8 +694,8 @@ export function createAnimator(map, ui, {
       return Promise.resolve(true);
     }
 
-    // No opening fly-in. Cut directly from the panoramic overview to the
-    // exact first playback pose, then let the normal playback camera take over.
+    // No opening panorama or fly-in. Settle directly on the exact first
+    // playback pose, then let the normal playback camera take over.
     resetPlaybackCameraGuards();
     const frameState = getCurrentFrameState();
     applyCameraFrame(
@@ -814,9 +749,71 @@ export function createAnimator(map, ui, {
     });
   }
 
+  function beginExportOutro() {
+    if (!route) return false;
+    const bounds = renderer.getBounds(route);
+    if (!bounds) return false;
+
+    const target = getOverviewCameraOptions(map, bounds, {
+      maxElevationM: getRouteMaxElevation(),
+    });
+    if (!target) return false;
+
+    const center = map.getCenter?.();
+    exportOutroState = {
+      start: {
+        center: [center?.lng ?? target.center[0], center?.lat ?? target.center[1]],
+        zoom: map.getZoom?.() ?? target.zoom,
+        pitch: map.getPitch?.() ?? target.pitch,
+        bearing: map.getBearing?.() ?? target.bearing,
+        elevation: map.getCenterElevation?.(),
+      },
+      target,
+    };
+    return true;
+  }
+
+  function renderExportOutroProgress(progress) {
+    if (!exportOutroState && !beginExportOutro()) return false;
+
+    const p = Math.max(0, Math.min(1, Number(progress) || 0));
+    const eased = 1 - Math.pow(1 - p, 2);
+    const { start, target } = exportOutroState;
+    const bearingDelta = ((((target.bearing - start.bearing) + 540) % 360) - 180);
+
+    const camera = {
+      center: [
+        start.center[0] + (target.center[0] - start.center[0]) * eased,
+        start.center[1] + (target.center[1] - start.center[1]) * eased,
+      ],
+      zoom: start.zoom + (target.zoom - start.zoom) * eased,
+      pitch: start.pitch + (target.pitch - start.pitch) * eased,
+      bearing: start.bearing + bearingDelta * eased,
+    };
+
+    if (
+      Number.isFinite(start.elevation) &&
+      Number.isFinite(target.elevation)
+    ) {
+      camera.elevation =
+        start.elevation + (target.elevation - start.elevation) * eased;
+    } else if (p >= 1 && Number.isFinite(target.elevation)) {
+      camera.elevation = target.elevation;
+    }
+
+    map.jumpTo(camera);
+    map.triggerRepaint?.();
+    return true;
+  }
+
+  function resetExportOutro() {
+    exportOutroState = null;
+  }
+
   function playInternal() {
     if (!route || !playbackPreparer.isArmed()) return;
     renderer.cancelOverview();
+    resetExportOutro();
 
     const dur = getDuration();
     if (animTime >= dur || animDistance >= route.totalDistance) {
@@ -837,8 +834,7 @@ export function createAnimator(map, ui, {
       );
     }
 
-    // Opening sequence: keep the panoramic overview while idle, then cut
-    // directly to the first playback pose. No animated zoom-in.
+    // Start directly from the first playback pose. No opening transition.
     if (animDistance < 1 && animTime < 0.001) {
       playing = true;
       ui.setPlaying(true);
@@ -956,7 +952,6 @@ export function createAnimator(map, ui, {
 
   return {
     addLayers,
-    rebuildAfterStyleChange,
     load,
     play() {
       if (!route || !playbackPreparer.isArmed()) return;
@@ -978,6 +973,7 @@ export function createAnimator(map, ui, {
     reset() {
       // Reset directly to the first playback camera pose.
       this.pause();
+      resetExportOutro();
       if (!route) return;
       route.resetTraveledCache?.();
       renderer.resetProgressCache?.();
@@ -995,6 +991,9 @@ export function createAnimator(map, ui, {
     showOverview,
     focusStart,
     playOutro,
+    beginExportOutro,
+    renderExportOutroProgress,
+    resetExportOutro,
     getIntroDurationMs: () => INTRO_DURATION_MS,
     getOutroDurationMs: () => OUTRO_DURATION_MS,
     scrubPreview(value) {
