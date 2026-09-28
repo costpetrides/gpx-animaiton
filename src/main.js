@@ -27,6 +27,13 @@ import { fingerprintRoutePoints } from './gpxFingerprint.js';
 import { normalizePrepareQuality } from './playback/preparePlans.js';
 import { createStudioKernel } from './studio/kernel.js';
 import { createDefaultCameraRig } from './camera/rig.js';
+import { createElevationChart } from './elevationChart.js';
+import {
+  FOLLOW_BEHIND_STOP_LEVELS,
+  getFollowBehindLevelForStopIndex,
+  getFollowBehindStopIndexForLevel,
+  getSuggestedFollowBehindZoomLevel,
+} from './camera/trailReplayPlan.js';
 
 const store = createStudioStore();
 let lastLoadedRouteFingerprint = null;
@@ -68,6 +75,11 @@ const btnReset = document.getElementById('btn-skip-start');
 const btnFullscreen = document.getElementById('btn-fullscreen');
 const btnExport = document.getElementById('btn-export-video');
 const speedSelect = document.getElementById('speed-select');
+const followDistance = document.getElementById('follow-distance');
+const followDistanceLabel = document.getElementById('follow-distance-label');
+const filmStats = document.getElementById('film-stats');
+const elevationProfileWrap = document.getElementById('elevation-profile-wrap');
+const elevationCanvas = document.getElementById('elevation-profile');
 const timeline = document.getElementById('timeline');
 const iconPlay = btnPlay.querySelector('.icon-play');
 const iconPause = btnPlay.querySelector('.icon-pause');
@@ -118,6 +130,8 @@ const shell = initShell({
   onResize: () => map.resize(),
 });
 
+let elevationChart = null;
+
 const animator = createAnimator(map, {
   setPlaying(on) {
     store.dispatch({ type: 'runtime/set-playback', payload: { playing: on } });
@@ -135,6 +149,9 @@ const animator = createAnimator(map, {
     setPlaybackControlsEnabled(false);
     renderProjectState();
     shell.setTimes(0, animator.getDuration?.() || 0);
+    elevationChart?.setData(animator.getElevationProfile?.() || []);
+    filmStats?.classList.remove('hidden');
+    elevationProfileWrap?.classList.remove('hidden');
   },
   onPlaybackDisarmed() {
     if (getRouteDocument() && animator.isPreparingPlayback?.()) {
@@ -190,6 +207,9 @@ const animator = createAnimator(map, {
   },
   onRouteCleared() {
     shell.hidePreparing();
+    elevationChart?.setData([]);
+    filmStats?.classList.add('hidden');
+    elevationProfileWrap?.classList.add('hidden');
     setPlaybackControlsEnabled(false);
     updateExportEnabled();
     cinematicStyleApplied = false;
@@ -217,6 +237,17 @@ const animator = createAnimator(map, {
       ? hud.durationSec
       : (animator.getDuration?.() || 0);
     shell.setTimes(current, total);
+    const progress = Number.isFinite(hud.progress) ? hud.progress / 100 : 0;
+    elevationChart?.setProgress(progress);
+
+    const setLive = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value ?? '—';
+    };
+    setLive('live-distance', hud.distance);
+    setLive('live-gain', hud.elevationGain);
+    setLive('live-elevation', hud.elevation);
+    setLive('live-progress', Number.isFinite(hud.progress) ? `${Math.round(hud.progress)}%` : '0%');
 
     const routeDoc = getRouteDocument();
     if (routeDoc && Number.isFinite(total)) {
@@ -235,7 +266,24 @@ const animator = createAnimator(map, {
     };
   },
   getTrackStyle: () => getProjectState().document.project.track,
+  getFollowBehindZoomLevel: () => (
+    selectPlaybackConfig(getProjectState()).followBehindZoomLevel ?? 33
+  ),
 });
+
+if (elevationCanvas) {
+  elevationChart = createElevationChart(elevationCanvas, {
+    onScrub(progress) {
+      userScrubbing = true;
+      if (animator.isPlaying()) animator.pause();
+      animator.scrubPreview(progress * 1000);
+    },
+    onScrubEnd(progress) {
+      animator.scrubCommit(progress * 1000);
+      userScrubbing = false;
+    },
+  });
+}
 
 function setPlaybackControlsEnabled(enabled) {
   btnPlay.disabled = !enabled;
@@ -289,6 +337,17 @@ function renderProjectState() {
     speedSelect.value = String(playback.speed);
   }
 
+  if (followDistance) {
+    const stopIndex = getFollowBehindStopIndexForLevel(
+      playback.followBehindZoomLevel ?? 33,
+    );
+    followDistance.value = String(stopIndex);
+    if (followDistanceLabel) {
+      const labels = ['Far', 'Far+', 'Medium−', 'Medium', 'Medium+', 'Close', 'Close+', 'Very close'];
+      followDistanceLabel.textContent = labels[stopIndex] || 'Medium';
+    }
+  }
+
   const armed = hasRoute && animator.isPlaybackArmed() && !animator.isPreparingPlayback();
   if (armed || (hasRoute && animator.isPlaybackArmed())) {
     setPlaybackControlsEnabled(true);
@@ -329,6 +388,17 @@ function handleGPX(text, filename = '') {
     store.dispatch({
       type: 'project/load-gpx',
       payload: { route: parsed, sourceFile: filename },
+    });
+
+    const routeDoc = getRouteDocument();
+    const suggestedFollowLevel = getSuggestedFollowBehindZoomLevel({
+      totalDistanceMeters: routeDoc?.stats?.totalDistance ?? 0,
+      videoDurationSeconds: 30,
+      latitudeDeg: parsed.points?.[0]?.lat,
+    });
+    store.dispatch({
+      type: 'project/set-follow-behind-zoom-level',
+      payload: { level: suggestedFollowLevel },
     });
 
     const preset = 'cinematic';
@@ -402,6 +472,20 @@ speedSelect.addEventListener('change', () => {
   store.dispatch({ type: 'project/set-playback-speed', payload: { speed } });
   animator.setSpeed(speed);
   renderProjectState();
+});
+
+followDistance?.addEventListener('input', () => {
+  const stopIndex = Number(followDistance.value) || 0;
+  const level = getFollowBehindLevelForStopIndex(stopIndex);
+  store.dispatch({
+    type: 'project/set-follow-behind-zoom-level',
+    payload: { level },
+  });
+  if (followDistanceLabel) {
+    const labels = ['Far', 'Far+', 'Medium−', 'Medium', 'Medium+', 'Close', 'Close+', 'Very close'];
+    followDistanceLabel.textContent = labels[stopIndex] || 'Medium';
+  }
+  animator.refreshCamera?.();
 });
 
 function bindDropTarget(el) {
