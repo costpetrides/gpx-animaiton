@@ -33,6 +33,7 @@ import {
 import { createTerrainStreamCoordinator } from './terrain/streamCoordinator.js';
 import { fingerprintRoutePoints } from './gpxFingerprint.js';
 import { normalizePrepareQuality } from './playback/preparePlans.js';
+import { createReplayTileWarmup } from './playback/tileWarmup.js';
 import { createStudioKernel } from './studio/kernel.js';
 import { createDefaultCameraRig } from './camera/rig.js';
 import { createElevationChart } from './elevationChart.js';
@@ -158,8 +159,29 @@ const shell = initShell({
 });
 
 let elevationChart = null;
+let animator = null;
 
-const animator = createAnimator(map, {
+const tileWarmup = createReplayTileWarmup({
+  visibleMap: map,
+  persistentStyle: persistentBasemap.style,
+  presentations: persistentBasemap.presentations,
+  initialBasemapStyleId: DEFAULT_MAP_STYLE_ID,
+  getCameraMode: () => (
+    selectPlaybackConfig(getProjectState()).cameraMode || 'cinematic'
+  ),
+  getCameraStability: () => (
+    selectPlaybackConfig(getProjectState()).cameraStability ?? 0.3
+  ),
+  getFollowBehindZoomLevel: () => (
+    selectPlaybackConfig(getProjectState()).followBehindZoomLevel ?? 33
+  ),
+  getPlaybackSpeed: () => (
+    selectPlaybackConfig(getProjectState()).speed ?? 1
+  ),
+  getDurationSec: () => animator?.getDuration?.() || 30,
+});
+
+animator = createAnimator(map, {
   setPlaying(on) {
     store.dispatch({ type: 'runtime/set-playback', payload: { playing: on } });
     iconPlay.classList.toggle('hidden', on);
@@ -195,6 +217,7 @@ const animator = createAnimator(map, {
       terrain_mode: 'Sculpting the landscape…',
       tiles_initial: 'Loading the world…',
       corridor_prefetch: 'Warming nearby map detail…',
+      opening_warmup: 'Warming the opening views…',
       full_route_prefetch: 'Warming the full route…',
       corridor: 'Warming nearby map detail…',
       settle: 'Finishing the scene…',
@@ -304,6 +327,7 @@ const animator = createAnimator(map, {
   getCameraStability: () => (
     selectPlaybackConfig(getProjectState()).cameraStability ?? 0.3
   ),
+  tileWarmup,
 });
 
 if (elevationCanvas) {
@@ -574,6 +598,7 @@ mapStyleSelect?.addEventListener('change', () => {
     nextStyle.id,
   );
   enforceBuildingsHidden(map);
+  tileWarmup.setBasemapStyle(nextStyle.id);
 
   // Reassert film presentation and 3D ordering against the now-visible
   // basemap group. No setStyle(), no route rebuild, no terrain teardown.
@@ -668,6 +693,7 @@ map.once('idle', () => {
 
 window.setTimeout(() => shell.hideLoading(), 4000);
 window.addEventListener('resize', () => map.resize());
+window.addEventListener('beforeunload', () => tileWarmup.destroy());
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.has('gpxDebug')) {
