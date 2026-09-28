@@ -8,9 +8,12 @@ import './style.css';
 import { parseGPX, formatDistance, formatDuration, formatElevation } from './gpx.js';
 import {
   DEFAULT_MAP_STYLE_ID,
-  getMapStyleUrl,
   resolveMapStyle,
 } from './mapStyles.js';
+import {
+  applyPersistentBasemapPresentation,
+  buildPersistentOpenFreeMapStyle,
+} from './persistentMapStyle.js';
 import {
   applyCinematicPresentation,
   attributionControlOptions,
