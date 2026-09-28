@@ -6,6 +6,7 @@ import {
   disableTerrain,
   enableTerrain,
   fitOverview,
+  flyOverview,
   setMap3dMode,
   stopCameraAnimation,
 } from './camera.js';
@@ -28,7 +29,10 @@ import { createPlaybackPrepareCoordinator } from './playback/prepareCoordinator.
 import { mapReasonToIntent, PREPARE_INTENT, PREPARE_QUALITY } from './playback/preparePlans.js';
 import { resolveCameraShotFromDocument } from './modules/cameraModule.js';
 import { rigToShot } from './camera/rig.js';
-import { createCameraDirector } from './camera/cinematic/index.js';
+import {
+  cameraPoseToShot,
+  getTrailReplayCameraPose,
+} from './camera/trailReplayPlan.js';
 
 export function createAnimator(map, ui, {
   terrainStream = null,
@@ -54,18 +58,6 @@ export function createAnimator(map, ui, {
   let currentSpeed = 0;
   let speedMul = 1;
   let cameraState = createCameraRuntimeState('cinematic');
-  const cameraDirector = createCameraDirector({
-    map,
-    getRig: () => {
-      const doc = getCameraDocument?.();
-      return doc?.rig || null;
-    },
-    getIntensity: () => {
-      const doc = getCameraDocument?.();
-      if (Number.isFinite(doc?.rig?.cinematicIntensity)) return doc.rig.cinematicIntensity;
-      return getCinematicIntensity();
-    },
-  });
   let renderFrameId = null;
   let lastAppliedCadenceTick = -1;
   let terrainBarrierActive = false;
@@ -78,6 +70,9 @@ export function createAnimator(map, ui, {
   let nextPrepareFitOnLoad = true;
   let terrainDegraded = false;
   let loopPlayback = false;
+  let transitionGeneration = 0;
+  const INTRO_DURATION_MS = 1500;
+  const OUTRO_DURATION_MS = 3000;
 
   const playbackPreparer = createPlaybackPrepareCoordinator({
     map,
@@ -88,16 +83,10 @@ export function createAnimator(map, ui, {
       terrainDegraded = Boolean(degraded);
       // Corridor maxBounds block pitched framing at trail ends — release for film.
       terrainStream?.releaseCameraBounds?.();
-      // Prepare-time terrain features for landscape look-ats.
-      if (route) {
-        try {
-          cameraDirector.ensureTerrainFeatures?.(route);
-        } catch {
-          // Features are optional; director falls back to offset look-ats.
-        }
-      }
       const frameState = getCurrentFrameState();
-      if (frameState) {
+      // Initial load deliberately stays on the panoramic overview. The first
+      // playback pose is reached only through the cinematic fly-in on Play.
+      if (frameState && !(reason === 'load' && animDistance < 1)) {
         applyCameraFrame(
           map,
           resolveCameraFrameForView(frameState, { continuous: false }),
@@ -165,6 +154,11 @@ export function createAnimator(map, ui, {
         }
       },
       isTerrainDegraded: () => terrainDegraded || mapViewMode === '2d',
+      restoreOverview: () => {
+        if (!route) return;
+        const bounds = renderer.getBounds(route);
+        if (bounds) fitOverview(map, bounds, { maxElevationM: getRouteMaxElevation() });
+      },
       renderFirstFrame: () => {
         const frameState = getCurrentFrameState();
         refreshProgressLayers(frameState, true);
@@ -216,7 +210,6 @@ export function createAnimator(map, ui, {
         cameraState.terrainGuard.bearingGuard.lastBearingDeg = null;
       }
     }
-    cameraDirector.reset();
     clearTerrainBarrier();
   }
 
@@ -237,33 +230,29 @@ export function createAnimator(map, ui, {
 
     const doc = getCameraDocument?.();
     if (mapViewMode !== '2d' && isCinematicCamera(doc) && route && frameState?.sample) {
-      const directed = cameraDirector.resolveShot({
-        sample: frameState.sample,
-        route,
-        animDistance,
-        continuous,
-        animTime,
-      });
-      if (directed?.shot) {
+      const progress = route.totalDistance > 0
+        ? animDistance / route.totalDistance
+        : 0;
+      const pose = getTrailReplayCameraPose(route, progress);
+      const shot = cameraPoseToShot(pose);
+
+      if (shot) {
         const frame = applyViewToCameraFrame({
           ...cameraFrame,
-          shot: directed.shot,
+          shot,
         });
-        if (frame.terrainGuard?.bearingGuard) {
-          // Terrain-showcase: allow slow drone pans without whip-turns.
-          frame.terrainGuard.bearingGuard.maxDeltaDegPerUpdate = 1.35;
-          frame.terrainGuard.bearingGuard.minDeltaDeg = 0.08;
-        }
-        // Keep DEM clearance; director already lifts when needed.
+
+        // TrailReplay practice: pose generation stays deterministic and calm;
+        // the terrain guard is only a safety layer underneath it.
         if (frame.terrainGuard) {
-          frame.terrainGuard.minClearanceM = Math.max(frame.terrainGuard.minClearanceM ?? 40, 36);
-          if (Number.isFinite(frame.terrainGuard.elevationSmoothAlpha)) {
-            frame.terrainGuard.elevationSmoothAlpha = Math.min(
-              frame.terrainGuard.elevationSmoothAlpha,
-              0.12,
-            );
-          } else {
-            frame.terrainGuard.elevationSmoothAlpha = 0.1;
+          frame.terrainGuard.minClearanceM = Math.max(
+            frame.terrainGuard.minClearanceM ?? 40,
+            40,
+          );
+          frame.terrainGuard.elevationSmoothing = 0.18;
+          if (frame.terrainGuard.bearingGuard) {
+            frame.terrainGuard.bearingGuard.maxDeltaDegPerUpdate = continuous ? 1.8 : 8;
+            frame.terrainGuard.bearingGuard.minDeltaDeg = continuous ? 0.12 : 0;
           }
         }
         return frame;
