@@ -11,6 +11,16 @@ export function createExportModule(ctx) {
         animator: ctx.animator,
         getDuration: ctx.getDuration,
         getPhotos: () => ctx.getState().document.project.media?.photos || [],
+        getVisibleStats: () => {
+          const project = ctx.getState().document.project;
+          const configured = Array.isArray(project.overlays?.visibleStats)
+            ? project.overlays.visibleStats
+            : ['distance', 'gain', 'altitude', 'time'];
+          const hasTime = Boolean(project.route?.stats?.hasTime);
+          return configured.filter(
+            (id) => !['time', 'speed', 'pace'].includes(id) || hasTime,
+          );
+        },
         onProgress: (p) => {
           const pct = Math.round((p.frame / p.totalFrames) * 100);
           ctx.shell?.setStatus(`Exporting ${pct}%`);
