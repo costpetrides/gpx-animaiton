@@ -11,6 +11,7 @@ import {
   createMp4CanvasEncoder,
   isWebCodecsMp4Supported,
 } from './mp4CanvasEncoder.js';
+import { getCropRegion } from './crop.js';
 
 export const EXPORT_QUALITY_OPTIONS = {
   low: { label: '720p', longEdge: 1280, bitrate: 2_000_000 },
@@ -124,14 +125,14 @@ export function createVideoExporter(deps) {
         compositeCtx.fillStyle = '#000';
         compositeCtx.fillRect(0, 0, width, height);
 
-        drawCover(
+        const crop = drawExportMapFrame(
           compositeCtx,
           mapCanvas,
           width,
           height,
         );
-        drawFilmStats(compositeCtx, width, height);
-        drawElevationProfile(compositeCtx, width, height);
+        drawFilmStats(compositeCtx, width, height, crop);
+        drawElevationProfile(compositeCtx, width, height, crop);
         if (photoMoment?.photo && photoMoment?.image) {
           drawPhotoMoment(
             compositeCtx,
@@ -546,38 +547,46 @@ function drawPhotoMoment(ctx, width, height, photo, image, elapsedMs, durationMs
   ctx.restore();
 }
 
-function drawCover(ctx, sourceCanvas, targetWidth, targetHeight) {
+function drawExportMapFrame(ctx, sourceCanvas, targetWidth, targetHeight) {
   const sourceWidth = sourceCanvas.width;
   const sourceHeight = sourceCanvas.height;
-  if (!sourceWidth || !sourceHeight) return;
-
-  const sourceAspect = sourceWidth / sourceHeight;
-  const targetAspect = targetWidth / targetHeight;
-
-  let sx = 0;
-  let sy = 0;
-  let sw = sourceWidth;
-  let sh = sourceHeight;
-
-  if (sourceAspect > targetAspect) {
-    sw = sourceHeight * targetAspect;
-    sx = (sourceWidth - sw) / 2;
-  } else if (sourceAspect < targetAspect) {
-    sh = sourceWidth / targetAspect;
-    sy = (sourceHeight - sh) / 2;
+  if (!sourceWidth || !sourceHeight) {
+    return {
+      cropX: 0,
+      cropY: 0,
+      cropW: targetWidth,
+      cropH: targetHeight,
+      cssWidth: targetWidth,
+      cssHeight: targetHeight,
+      scaleToRecording: 1,
+    };
   }
+
+  const mapElement = document.getElementById('map');
+  const cssWidth = Math.max(1, mapElement?.clientWidth || sourceWidth);
+  const cssHeight = Math.max(1, mapElement?.clientHeight || sourceHeight);
+  const crop = getCropRegion(cssWidth, cssHeight, targetWidth, targetHeight);
+  const pixelScaleX = sourceWidth / cssWidth;
+  const pixelScaleY = sourceHeight / cssHeight;
 
   ctx.drawImage(
     sourceCanvas,
-    sx,
-    sy,
-    sw,
-    sh,
+    crop.cropX * pixelScaleX,
+    crop.cropY * pixelScaleY,
+    crop.cropW * pixelScaleX,
+    crop.cropH * pixelScaleY,
     0,
     0,
     targetWidth,
     targetHeight,
   );
+
+  return {
+    ...crop,
+    cssWidth,
+    cssHeight,
+    scaleToRecording: targetWidth / Math.max(1, crop.cropW),
+  };
 }
 
 function waitForMapRender(map, signal, timeoutMs = 2000) {
@@ -716,21 +725,23 @@ async function captureRealtimePhase({
   drawCompositeFrame();
 }
 
-function drawFilmStats(ctx, width, height) {
+function drawFilmStats(ctx, width, height, crop = null) {
   const values = [
     ['DISTANCE', document.getElementById('live-distance')?.textContent || '—'],
     ['GAIN', document.getElementById('live-gain')?.textContent || '—'],
     ['ALTITUDE', document.getElementById('live-elevation')?.textContent || '—'],
-    ['GPX TIME', document.getElementById('live-time')?.textContent || '00:00'],
+    ['TIME', document.getElementById('live-time')?.textContent || '00:00'],
   ];
 
-  const mapElement = document.getElementById('map');
-  const scale =
-    width / Math.max(1, mapElement?.clientWidth || width);
-  const x = 18 * scale;
-  const y = 18 * scale;
+  // TrailReplay scales overlays from the actual export crop, not from the
+  // whole desktop viewport. This keeps portrait/square stats readable.
+  const scale = crop?.scaleToRecording || 1;
   const boxW = 220 * scale;
   const boxH = 92 * scale;
+  const margin = 18 * scale;
+  const narrow = width <= height;
+  const x = narrow ? (width - boxW) / 2 : margin;
+  const y = margin;
 
   ctx.save();
   ctx.fillStyle = 'rgba(8,10,12,0.62)';
@@ -758,7 +769,7 @@ function drawFilmStats(ctx, width, height) {
   ctx.restore();
 }
 
-function drawElevationProfile(ctx, width, height) {
+function drawElevationProfile(ctx, width, height, crop = null) {
   const source = document.getElementById('elevation-profile');
   if (
     !(source instanceof HTMLCanvasElement) ||
@@ -769,8 +780,7 @@ function drawElevationProfile(ctx, width, height) {
   }
 
   const targetWidth = width * 0.85;
-  const scale =
-    width / Math.max(1, document.getElementById('map')?.clientWidth || width);
+  const scale = crop?.scaleToRecording || 1;
   const targetHeight = Math.max(44 * scale, 76 * scale);
   const x = (width - targetWidth) / 2;
   const y = height - targetHeight - 12 * scale;
