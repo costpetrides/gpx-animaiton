@@ -33,6 +33,10 @@ function reduce(state, action) {
             name: route.name,
             sourceFile: action.payload.sourceFile || '',
             route,
+            media: {
+              ...state.document.project.media,
+              photos: [],
+            },
           }),
         },
         editor: {
@@ -41,6 +45,66 @@ function reduce(state, action) {
           lastAction: 'project/load-gpx',
         },
         runtime: createEmptyRuntimeState(),
+      };
+    }
+
+    case 'project/add-photo': {
+      return {
+        ...state,
+        document: {
+          ...state.document,
+          project: stampProject({
+            ...state.document.project,
+            media: {
+              ...state.document.project.media,
+              photos: [
+                ...(state.document.project.media?.photos || []),
+                action.payload.photo,
+              ],
+            },
+          }),
+        },
+        editor: { ...state.editor, dirty: true, lastAction: 'project/add-photo' },
+      };
+    }
+
+    case 'project/update-photo': {
+      const { id, patch } = action.payload;
+      return {
+        ...state,
+        document: {
+          ...state.document,
+          project: stampProject({
+            ...state.document.project,
+            media: {
+              ...state.document.project.media,
+              photos: (state.document.project.media?.photos || []).map((photo) =>
+                photo.id === id ? { ...photo, ...patch } : photo
+              ),
+            },
+          }),
+        },
+        editor: { ...state.editor, dirty: true, lastAction: 'project/update-photo' },
+      };
+    }
+
+    case 'project/remove-photo': {
+      const { id } = action.payload;
+      return {
+        ...state,
+        document: {
+          ...state.document,
+          project: stampProject({
+            ...state.document.project,
+            media: {
+              ...state.document.project.media,
+              photos: (state.document.project.media?.photos || []).filter(
+                (photo) => photo.id !== id,
+              ),
+            },
+          }),
+        },
+        editor: { ...state.editor, dirty: true, lastAction: 'project/remove-photo' },
       };
     }
 
