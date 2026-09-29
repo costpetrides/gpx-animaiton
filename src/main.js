@@ -128,6 +128,7 @@ const cameraStabilityGroup = document.getElementById('camera-stability-group');
 const followDistanceGroup = document.getElementById('follow-distance-group');
 const followDistance = document.getElementById('follow-distance');
 const followDistanceLabel = document.getElementById('follow-distance-label');
+const filmTelemetry = document.getElementById('film-telemetry');
 const filmStats = document.getElementById('film-stats');
 const statToggles = [...document.querySelectorAll('[data-stat-toggle]')];
 const liveStatItems = [...document.querySelectorAll('[data-live-stat]')];
@@ -188,11 +189,11 @@ function updateExportCropPreview() {
 
   // Match TrailReplay's export-aware overlay positioning: preview UI is
   // positioned inside the exact frame that will be encoded.
-  if (filmStats) {
-    filmStats.style.top = `${metrics.frameTop + Math.max(18, metrics.frameHeight * 0.04)}px`;
-    filmStats.style.left = `${metrics.frameLeft + metrics.frameWidth / 2}px`;
-    filmStats.style.width = `${Math.min(metrics.frameWidth * 0.89, 760)}px`;
-    filmStats.style.transform = 'translateX(-50%)';
+  if (filmTelemetry) {
+    filmTelemetry.style.top = `${metrics.frameTop + Math.max(18, metrics.frameHeight * 0.04)}px`;
+    filmTelemetry.style.left = `${metrics.frameLeft + metrics.frameWidth / 2}px`;
+    filmTelemetry.style.width = `${Math.min(metrics.frameWidth * 0.89, 760)}px`;
+    filmTelemetry.style.transform = 'translateX(-50%)';
   }
   if (elevationProfileWrap) {
     const sideInset = metrics.frameWidth * 0.075;
@@ -205,11 +206,11 @@ function updateExportCropPreview() {
 function clearExportFramePreview() {
   exportCropPreview?.classList.add('hidden');
   animator?.setExportFrameMetrics?.(null);
-  if (filmStats) {
-    filmStats.style.top = '';
-    filmStats.style.left = '';
-    filmStats.style.width = '';
-    filmStats.style.transform = '';
+  if (filmTelemetry) {
+    filmTelemetry.style.top = '';
+    filmTelemetry.style.left = '';
+    filmTelemetry.style.width = '';
+    filmTelemetry.style.transform = '';
   }
   if (elevationProfileWrap) {
     elevationProfileWrap.style.left = '';
@@ -290,7 +291,7 @@ function syncStatsUI() {
       .filter((item) => !available.has(item.dataset.liveStat))
       .forEach((item) => filmStats.appendChild(item));
 
-    filmStats.classList.toggle('hidden', !hasRoute || available.size === 0);
+    filmTelemetry?.classList.toggle('hidden', !hasRoute || available.size === 0);
     filmStats.style.gridTemplateColumns = 'repeat(3, minmax(0, 1fr))';
   }
 }
