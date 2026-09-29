@@ -603,9 +603,11 @@ function drawExportMapFrame(ctx, sourceCanvas, targetWidth, targetHeight) {
     };
   }
 
-  const mapElement = document.getElementById('map');
-  const cssWidth = Math.max(1, mapElement?.clientWidth || sourceWidth);
-  const cssHeight = Math.max(1, mapElement?.clientHeight || sourceHeight);
+  // Match TrailReplay: preview and encoder derive their crop from the exact
+  // same capture container, never from a different child element.
+  const captureContainer = document.getElementById('viewport-canvas');
+  const cssWidth = Math.max(1, captureContainer?.clientWidth || sourceWidth);
+  const cssHeight = Math.max(1, captureContainer?.clientHeight || sourceHeight);
   const crop = getCropRegion(cssWidth, cssHeight, targetWidth, targetHeight);
   const pixelScaleX = sourceWidth / cssWidth;
   const pixelScaleY = sourceHeight / cssHeight;
