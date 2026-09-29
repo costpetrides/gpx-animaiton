@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "pack": "vite build && electron-builder --dir",
     "dist": "vite build && electron-builder",
-    "validate:gpx": "node scripts/validate-gpx-suite.mjs"
+    "validate:gpx": "node scripts/validate-gpx-suite.mjs",
+    "test:mobile": "node --test src/mobile/ryodoMobileProfile.test.js"
   },
   "dependencies": {
     "exifr": "^7.1.3",
