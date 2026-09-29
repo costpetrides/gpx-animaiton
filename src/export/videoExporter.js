@@ -504,21 +504,29 @@ function loadImage(url, signal) {
 }
 
 function photoMomentStyle(elapsedMs, durationMs) {
-  const enterMs = 450;
+  const enterMs = 600;
   const exitMs = 350;
   const elapsed = Math.max(0, elapsedMs);
   if (elapsed < enterMs) {
     const t = Math.min(1, elapsed / enterMs);
     const eased = 1 - (1 - t) ** 3;
-    return { opacity: eased, scale: 0.15 + 0.85 * eased };
+    return {
+      opacity: eased,
+      scale: 0.96 + 0.04 * eased,
+      portraitScale: 1.03 - 0.03 * eased,
+    };
   }
   const exitStart = Math.max(enterMs, durationMs - exitMs);
   if (elapsed > exitStart) {
     const t = Math.min(1, (elapsed - exitStart) / Math.max(1, durationMs - exitStart));
     const eased = t ** 3;
-    return { opacity: 1 - eased, scale: 1 - 0.15 * eased };
+    return {
+      opacity: 1 - eased,
+      scale: 1 - 0.15 * eased,
+      portraitScale: 1,
+    };
   }
-  return { opacity: 1, scale: 1 };
+  return { opacity: 1, scale: 1, portraitScale: 1 };
 }
 
 function drawPhotoMoment(ctx, width, height, photo, image, elapsedMs, durationMs) {
@@ -545,8 +553,9 @@ function drawPhotoMoment(ctx, width, height, photo, image, elapsedMs, durationMs
       drawW = width;
       drawH = width / imageAspect;
     }
-    drawW *= style.scale;
-    drawH *= style.scale;
+    const portraitScale = style.portraitScale ?? 1;
+    drawW *= portraitScale;
+    drawH *= portraitScale;
     x = (width - drawW) / 2;
     y = (height - drawH) / 2;
   } else {
