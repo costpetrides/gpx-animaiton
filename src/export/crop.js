@@ -55,3 +55,21 @@ export function getCropRegion(containerWidth, containerHeight, recordW, recordH)
 
   return { cropX, cropY, cropW, cropH };
 }
+
+
+const MIN_EXPORT_FIT_MARGIN_PX = 24;
+const EXPORT_FIT_MARGIN_RATIO = 0.05;
+
+export function getExportFrameFitPadding(exportFrame) {
+  if (!exportFrame) return 100;
+  const safeMargin = Math.max(
+    MIN_EXPORT_FIT_MARGIN_PX,
+    Math.min(exportFrame.frameWidth, exportFrame.frameHeight) * EXPORT_FIT_MARGIN_RATIO,
+  );
+  return {
+    top: exportFrame.top + safeMargin,
+    right: exportFrame.right + safeMargin,
+    bottom: exportFrame.bottom + safeMargin,
+    left: exportFrame.left + safeMargin,
+  };
+}
