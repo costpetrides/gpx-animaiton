@@ -107,7 +107,7 @@ export function createEmptyProjectDocument() {
       },
       overlays: {
         stats: true,
-        visibleStats: ['distance', 'pace', 'altitude'],
+        visibleStats: ['altitude', 'distance', 'speed'],
         title: '',
         logo: null,
       },
