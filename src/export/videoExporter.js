@@ -12,15 +12,63 @@ import {
   isWebCodecsMp4Supported,
 } from './mp4CanvasEncoder.js';
 
-export const EXPORT_QUALITY_PRESETS = {
-  draft: { label: 'Draft', width: 1280, height: 720, fps: 24, bitrate: 4_000_000 },
-  standard: { label: 'Standard', width: 1920, height: 1080, fps: 30, bitrate: 8_000_000 },
-  high: { label: 'High', width: 1920, height: 1080, fps: 60, bitrate: 16_000_000 },
+export const EXPORT_QUALITY_OPTIONS = {
+  low: { label: '720p', longEdge: 1280, bitrate: 2_000_000 },
+  medium: { label: '1080p', longEdge: 1920, bitrate: 5_000_000 },
+  high: { label: '1440p', longEdge: 2560, bitrate: 10_000_000 },
+  ultra: { label: '4K', longEdge: 3840, bitrate: 20_000_000 },
 };
 
+export const EXPORT_ASPECT_RATIOS = ['16:9', '1:1', '9:16'];
+export const EXPORT_FRAME_RATES = [24, 30, 60];
+
 export function normalizeExportQuality(value) {
-  if (value === 'draft' || value === 'high') return value;
-  return 'standard';
+  if (value === 'low' || value === 'high' || value === 'ultra') return value;
+  // Backward compatibility with the previous renderer presets.
+  if (value === 'draft') return 'low';
+  if (value === 'standard') return 'medium';
+  return 'medium';
+}
+
+export function normalizeExportAspectRatio(value) {
+  return EXPORT_ASPECT_RATIOS.includes(value) ? value : '16:9';
+}
+
+export function normalizeExportFps(value) {
+  const fps = Number(value);
+  return EXPORT_FRAME_RATES.includes(fps) ? fps : 30;
+}
+
+export function getExportResolution(qualityValue, aspectRatioValue) {
+  const quality = EXPORT_QUALITY_OPTIONS[normalizeExportQuality(qualityValue)] || EXPORT_QUALITY_OPTIONS.medium;
+  const aspectRatio = normalizeExportAspectRatio(aspectRatioValue);
+  const longEdge = quality.longEdge;
+
+  if (aspectRatio === '1:1') {
+    const size = Math.round((longEdge * 9) / 16);
+    return { width: size, height: size };
+  }
+  if (aspectRatio === '9:16') {
+    return { width: Math.round((longEdge * 9) / 16), height: longEdge };
+  }
+  return { width: longEdge, height: Math.round((longEdge * 9) / 16) };
+}
+
+function resolveExportPreset(options = {}) {
+  const qualityKey = normalizeExportQuality(options.quality);
+  const aspectRatio = normalizeExportAspectRatio(options.aspectRatio);
+  const fps = normalizeExportFps(options.fps);
+  const quality = EXPORT_QUALITY_OPTIONS[qualityKey] || EXPORT_QUALITY_OPTIONS.medium;
+  const resolution = getExportResolution(qualityKey, aspectRatio);
+  return {
+    qualityKey,
+    aspectRatio,
+    fps,
+    width: resolution.width,
+    height: resolution.height,
+    bitrate: quality.bitrate,
+    label: quality.label,
+  };
 }
 
 export function createVideoExporter(deps) {
@@ -33,9 +81,7 @@ export function createVideoExporter(deps) {
   }
 
   async function exportVideo(options = {}) {
-    const quality =
-      EXPORT_QUALITY_PRESETS[normalizeExportQuality(options.quality)] ||
-      EXPORT_QUALITY_PRESETS.standard;
+    const quality = resolveExportPreset(options);
     const format = options.format === 'webm' ? 'webm' : 'mp4';
 
     if (!animator.getRoute()) throw new Error('No route loaded');
