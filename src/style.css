@@ -1275,3 +1275,74 @@ select {
 .film-stats > div.hidden {
   display: none;
 }
+
+
+/* Strava-style map telemetry: no floating card, fixed 3 x 2 flow */
+.film-stats {
+  top: 28px;
+  left: 50%;
+  width: min(78%, 760px);
+  transform: translateX(-50%);
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 22px 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.film-stats > div {
+  min-width: 0;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.62);
+}
+
+.film-stats span {
+  color: rgba(255,255,255,0.90);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+}
+
+.film-stats strong {
+  margin-top: 2px;
+  color: #fff;
+  font-family: var(--font);
+  font-size: clamp(24px, 2.3vw, 42px);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.025em;
+}
+
+.film-stats small {
+  min-height: 14px;
+  color: rgba(255,255,255,0.94);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (max-width: 700px) {
+  .film-stats {
+    top: 22px;
+    width: calc(100% - 34px);
+    gap: 18px 6px;
+  }
+
+  .film-stats span {
+    font-size: 9px;
+  }
+
+  .film-stats strong {
+    font-size: clamp(21px, 7vw, 34px);
+  }
+
+  .film-stats small {
+    font-size: 10px;
+  }
+}
