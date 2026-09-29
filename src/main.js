@@ -190,7 +190,7 @@ function updateExportCropPreview() {
   // Match TrailReplay's export-aware overlay positioning: preview UI is
   // positioned inside the exact frame that will be encoded.
   if (filmTelemetry) {
-    filmTelemetry.style.top = `${metrics.frameTop + Math.max(18, metrics.frameHeight * 0.04)}px`;
+    filmTelemetry.style.top = `${metrics.frameTop + Math.max(28, metrics.frameHeight * 0.07)}px`;
     filmTelemetry.style.left = `${metrics.frameLeft + metrics.frameWidth / 2}px`;
     filmTelemetry.style.width = `${Math.min(metrics.frameWidth * 0.89, 760)}px`;
     filmTelemetry.style.transform = 'translateX(-50%)';
