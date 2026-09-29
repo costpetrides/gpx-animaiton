@@ -44,6 +44,7 @@ import { createStudioKernel } from './studio/kernel.js';
 import { createDefaultCameraRig } from './camera/rig.js';
 import { createElevationChart } from './elevationChart.js';
 import { getExportResolution } from './export/videoExporter.js';
+import { getCropPreviewMetrics } from './export/crop.js';
 import {
   getFollowBehindLevelForStopIndex,
   getFollowBehindStopIndexForLevel,
@@ -112,6 +113,8 @@ const exportResolutionSummary = document.getElementById('export-resolution-summa
 const exportRatioButtons = [...document.querySelectorAll('[data-export-ratio]')];
 const exportQualityButtons = [...document.querySelectorAll('[data-export-quality]')];
 const exportFpsButtons = [...document.querySelectorAll('[data-export-fps]')];
+const exportCropPreview = document.getElementById('export-crop-preview');
+const exportCropRatioLabel = document.getElementById('export-crop-label-ratio');
 const mapStyleSelect = document.getElementById('map-style-select');
 const speedSelect = document.getElementById('speed-select');
 const cameraModeSelect = document.getElementById('camera-mode');
@@ -128,6 +131,54 @@ const elevationCanvas = document.getElementById('elevation-profile');
 const timeline = document.getElementById('timeline');
 const iconPlay = btnPlay.querySelector('.icon-play');
 const iconPause = btnPlay.querySelector('.icon-pause');
+
+function updateExportCropPreview() {
+  if (!exportCropPreview || !viewportCanvas) return;
+  const config = getExportConfig();
+  const ratio = config.aspectRatio || '16:9';
+  const width = viewportCanvas.clientWidth;
+  const height = viewportCanvas.clientHeight;
+  if (!width || !height) return;
+
+  const metrics = getCropPreviewMetrics(width, height, ratio);
+  const left = exportCropPreview.querySelector('.export-crop-shade--left');
+  const right = exportCropPreview.querySelector('.export-crop-shade--right');
+  const top = exportCropPreview.querySelector('.export-crop-shade--top');
+  const bottom = exportCropPreview.querySelector('.export-crop-shade--bottom');
+  const frame = exportCropPreview.querySelector('.export-crop-frame');
+
+  if (left) Object.assign(left.style, {
+    left: '0px',
+    top: '0px',
+    bottom: '0px',
+    width: `${metrics.left}px`,
+  });
+  if (right) Object.assign(right.style, {
+    right: '0px',
+    top: '0px',
+    bottom: '0px',
+    width: `${metrics.right}px`,
+  });
+  if (top) Object.assign(top.style, {
+    left: '0px',
+    right: '0px',
+    top: '0px',
+    height: `${metrics.top}px`,
+  });
+  if (bottom) Object.assign(bottom.style, {
+    left: '0px',
+    right: '0px',
+    bottom: '0px',
+    height: `${metrics.bottom}px`,
+  });
+  if (frame) Object.assign(frame.style, {
+    left: `${metrics.frameLeft}px`,
+    top: `${metrics.frameTop}px`,
+    width: `${metrics.frameWidth}px`,
+    height: `${metrics.frameHeight}px`,
+  });
+  if (exportCropRatioLabel) exportCropRatioLabel.textContent = ratio;
+}
 
 function getExportConfig() {
   return getProjectState().document.project.export || {};
@@ -183,16 +234,22 @@ function setExportConfig(patch) {
     },
   });
   syncExportSettingsUI();
+  if (exportCropPreview && !exportCropPreview.classList.contains('hidden')) {
+    updateExportCropPreview();
+  }
 }
 
 function openExportSettings() {
   if (!getRouteDocument()) return;
   syncExportSettingsUI();
+  updateExportCropPreview();
+  exportCropPreview?.classList.remove('hidden');
   exportSettingsModal?.classList.remove('hidden');
 }
 
 function closeExportSettings() {
   exportSettingsModal?.classList.add('hidden');
+  exportCropPreview?.classList.add('hidden');
 }
 
 function setEditorTab(tabId) {
@@ -1101,7 +1158,12 @@ map.once('idle', () => {
 });
 
 window.setTimeout(() => shell.hideLoading(), 4000);
-window.addEventListener('resize', () => map.resize());
+window.addEventListener('resize', () => {
+  map.resize();
+  if (exportCropPreview && !exportCropPreview.classList.contains('hidden')) {
+    updateExportCropPreview();
+  }
+});
 window.addEventListener('beforeunload', () => {
   tileWarmup.destroy();
   photoController?.destroy?.();
