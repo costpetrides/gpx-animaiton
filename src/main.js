@@ -126,6 +126,8 @@ const followDistanceGroup = document.getElementById('follow-distance-group');
 const followDistance = document.getElementById('follow-distance');
 const followDistanceLabel = document.getElementById('follow-distance-label');
 const filmStats = document.getElementById('film-stats');
+const statToggles = [...document.querySelectorAll('[data-stat-toggle]')];
+const liveStatItems = [...document.querySelectorAll('[data-live-stat]')];
 const elevationProfileWrap = document.getElementById('elevation-profile-wrap');
 const elevationCanvas = document.getElementById('elevation-profile');
 const timeline = document.getElementById('timeline');
@@ -179,6 +181,58 @@ function updateExportCropPreview() {
   });
   if (exportCropRatioLabel) exportCropRatioLabel.textContent = ratio;
 }
+
+const DEFAULT_VISIBLE_STATS = ['distance', 'gain', 'altitude', 'time'];
+const TIME_DEPENDENT_STATS = new Set(['time', 'speed', 'pace']);
+
+function getConfiguredVisibleStats() {
+  const configured = getProjectState().document.project.overlays?.visibleStats;
+  return Array.isArray(configured) ? configured : DEFAULT_VISIBLE_STATS;
+}
+
+function getAvailableVisibleStats() {
+  const routeDoc = getRouteDocument();
+  const hasRecordedTime = Boolean(routeDoc?.stats?.hasTime);
+  return getConfiguredVisibleStats().filter(
+    (id) => !TIME_DEPENDENT_STATS.has(id) || hasRecordedTime,
+  );
+}
+
+function syncStatsUI() {
+  const routeDoc = getRouteDocument();
+  const hasRoute = Boolean(routeDoc);
+  const hasRecordedTime = Boolean(routeDoc?.stats?.hasTime);
+  const configured = new Set(getConfiguredVisibleStats());
+  const available = new Set(getAvailableVisibleStats());
+
+  statToggles.forEach((input) => {
+    const id = input.dataset.statToggle;
+    const unavailable = TIME_DEPENDENT_STATS.has(id) && hasRoute && !hasRecordedTime;
+    input.checked = configured.has(id);
+    input.disabled = !hasRoute || unavailable;
+    input.closest('.stats-choice')?.classList.toggle('is-unavailable', unavailable);
+  });
+
+  liveStatItems.forEach((item) => {
+    item.classList.toggle('hidden', !available.has(item.dataset.liveStat));
+  });
+
+  filmStats?.classList.toggle('hidden', !hasRoute || available.size === 0);
+}
+
+statToggles.forEach((input) => {
+  input.addEventListener('change', () => {
+    const next = new Set(getConfiguredVisibleStats());
+    const id = input.dataset.statToggle;
+    if (input.checked) next.add(id);
+    else next.delete(id);
+    store.dispatch({
+      type: 'project/set-overlay-config',
+      payload: { visibleStats: [...next] },
+    });
+    syncStatsUI();
+  });
+});
 
 function getExportConfig() {
   return getProjectState().document.project.export || {};
@@ -366,7 +420,7 @@ const tileWarmup = createReplayTileWarmup({
     selectPlaybackConfig(getProjectState()).cameraMode || 'cinematic'
   ),
   getCameraStability: () => (
-    selectPlaybackConfig(getProjectState()).cameraStability ?? 0.3
+    selectPlaybackConfig(getProjectState()).cameraStability ?? 0.5
   ),
   getFollowBehindZoomLevel: () => (
     selectPlaybackConfig(getProjectState()).followBehindZoomLevel ?? 33
@@ -497,6 +551,8 @@ animator = createAnimator(map, {
     setLive('live-gain', hud.elevationGain);
     setLive('live-elevation', hud.elevation);
     setLive('live-time', hud.recordedTime || '00:00');
+    setLive('live-speed', hud.recordedSpeed || '—');
+    setLive('live-pace', hud.pace || '—');
 
     const routeDoc = getRouteDocument();
     if (routeDoc && Number.isFinite(total)) {
@@ -744,6 +800,7 @@ function renderProjectState() {
   if (btnAddPhotosHeader) btnAddPhotosHeader.disabled = !hasRoute;
   photoDropzone?.classList.toggle('is-disabled', !hasRoute);
   renderPhotoList();
+  syncStatsUI();
 
   if (hasRoute) {
     shell.hideEmptyState();
