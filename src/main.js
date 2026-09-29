@@ -531,7 +531,11 @@ function renderProjectState() {
 
   if (hasRoute) {
     shell.hideEmptyState();
-    const filmLength = animator.getDuration?.() || 0;
+    const routeFilmLength = animator.getDuration?.() || 0;
+    const photoHoldSeconds = getProjectPhotos()
+      .filter((photo) => Number.isFinite(photo.progress))
+      .reduce((sum, photo) => sum + Math.max(500, photo.displayDurationMs || 3000) / 1000, 0);
+    const filmLength = routeFilmLength + photoHoldSeconds;
     shell.updateProject({
       name: routeDoc.name || 'Untitled trail',
       length: formatDistance(routeDoc.stats.totalDistance),
@@ -634,6 +638,10 @@ function enableCinematic3d() {
 
 function handleGPX(text, filename = '') {
   try {
+    getProjectPhotos().forEach((photo) => {
+      if (photo.url?.startsWith?.('blob:')) URL.revokeObjectURL(photo.url);
+    });
+    photoController?.resetPlaybackTriggers?.(0);
     shell.showPreparing('Opening GPX', 'Reading your trail…');
     const parsed = parseGPX(text);
     const fingerprint = fingerprintRoutePoints(parsed.points);
@@ -667,6 +675,7 @@ function handleGPX(text, filename = '') {
     });
 
     animator.load(parsed, { fitOnLoad: true });
+    photoController?.syncMarkers?.();
     syncMap3dGestures(map, true);
     renderProjectState();
   } catch (err) {
