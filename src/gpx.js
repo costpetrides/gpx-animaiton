@@ -194,6 +194,16 @@ export function formatSpeed(ms) {
   return kmh.toFixed(1) + ' km/h';
 }
 
+export function formatPace(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return '—';
+  const secPerKm = 1000 / ms;
+  if (!Number.isFinite(secPerKm) || secPerKm <= 0) return '—';
+  const minutes = Math.floor(secPerKm / 60);
+  const seconds = Math.round(secPerKm % 60);
+  if (seconds === 60) return `${minutes + 1}:00 /km`;
+  return `${minutes}:${String(seconds).padStart(2, '0')} /km`;
+}
+
 export function formatElevation(m) {
   if (m == null || isNaN(m)) return '—';
   return Math.round(m) + ' m';
