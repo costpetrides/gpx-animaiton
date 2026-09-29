@@ -826,18 +826,22 @@ function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
       ? { value: rawValue, unit: rawUnit }
       : splitExportStat(rawValue);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.90)';
-    ctx.font = `700 ${labelPx}px sans-serif`;
-    ctx.fillText(label, cx, y + labelPx);
+    const valueY = y + valuePx;
+    const labelY = valueY + labelPx + 8 * scale;
+    const unitY = labelY + unitPx + 6 * scale;
 
     ctx.fillStyle = '#fff';
     ctx.font = `700 ${valuePx}px sans-serif`;
-    ctx.fillText(String(parsed.value), cx, y + labelPx + valuePx + 6 * scale);
+    ctx.fillText(String(parsed.value), cx, valueY);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.90)';
+    ctx.font = `700 ${labelPx}px sans-serif`;
+    ctx.fillText(label, cx, labelY);
 
     if (parsed.unit) {
       ctx.fillStyle = 'rgba(255,255,255,0.94)';
       ctx.font = `700 ${unitPx}px sans-serif`;
-      ctx.fillText(String(parsed.unit), cx, y + labelPx + valuePx + unitPx + 12 * scale);
+      ctx.fillText(String(parsed.unit), cx, unitY);
     }
   });
 
