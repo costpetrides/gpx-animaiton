@@ -57,6 +57,7 @@ let kernel = null;
 let userScrubbing = false;
 let cinematicStyleApplied = false;
 let photoController = null;
+let lastPhotoListSignature = '';
 
 function getProjectState() {
   return store.getState();
@@ -397,10 +398,24 @@ function photoPlacementLabel(photo) {
   return 'Needs placement';
 }
 
-function renderPhotoList() {
+function renderPhotoList({ force = false } = {}) {
   const photos = getProjectPhotos();
   if (photosCount) photosCount.textContent = String(photos.length);
   if (!photoList) return;
+
+  const signature = photos
+    .map((photo) => [
+      photo.id,
+      photo.originalFileName,
+      photo.progress ?? 'pending',
+      photo.placementSource,
+      photo.displayDurationMs,
+      photo.url,
+    ].join(':'))
+    .join('|');
+
+  if (!force && signature === lastPhotoListSignature) return;
+  lastPhotoListSignature = signature;
   photoList.replaceChildren();
 
   photos.forEach((photo) => {
@@ -515,7 +530,7 @@ async function addPhotoFiles(files) {
   }
 
   photoController?.syncMarkers?.();
-  renderPhotoList();
+  renderPhotoList({ force: true });
 
   if (unresolved > 0) {
     shell.setStatus(
@@ -679,6 +694,7 @@ function handleGPX(text, filename = '') {
       if (photo.url?.startsWith?.('blob:')) URL.revokeObjectURL(photo.url);
     });
     photoController?.resetPlaybackTriggers?.(0);
+    lastPhotoListSignature = '';
     shell.showPreparing('Opening GPX', 'Reading your trail…');
     const parsed = parseGPX(text);
     const fingerprint = fingerprintRoutePoints(parsed.points);
@@ -926,7 +942,7 @@ viewportCanvas?.addEventListener('drop', (event) => {
       `Placed ${photo?.originalFileName || 'photo'} on the route`,
     );
     setEditorTab('photos');
-    renderPhotoList();
+    renderPhotoList({ force: true });
   }
 });
 
