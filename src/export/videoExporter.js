@@ -804,7 +804,7 @@ function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
   const scale = crop?.scaleToRecording || 1;
   const columns = 3;
   const marginX = Math.max(18 * scale, width * 0.055);
-  const top = Math.max(28 * scale, height * 0.07);
+  const top = Math.max(34 * scale, height * 0.085);
   const usableWidth = Math.max(1, width - marginX * 2);
   const colW = usableWidth / columns;
 
