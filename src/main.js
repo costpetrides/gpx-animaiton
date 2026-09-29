@@ -43,6 +43,7 @@ import { createPhotoController } from './media/photoController.js';
 import { createStudioKernel } from './studio/kernel.js';
 import { createDefaultCameraRig } from './camera/rig.js';
 import { createElevationChart } from './elevationChart.js';
+import { getExportResolution } from './export/videoExporter.js';
 import {
   getFollowBehindLevelForStopIndex,
   getFollowBehindStopIndexForLevel,
@@ -105,6 +106,13 @@ const btnPlay = document.getElementById('btn-play');
 const btnReset = document.getElementById('btn-skip-start');
 const btnFullscreen = document.getElementById('btn-fullscreen');
 const btnExport = document.getElementById('btn-export-video');
+const exportSettingsModal = document.getElementById('export-settings-modal');
+const btnCloseExportSettings = document.getElementById('btn-close-export-settings');
+const btnGenerateExport = document.getElementById('btn-generate-export');
+const exportResolutionSummary = document.getElementById('export-resolution-summary');
+const exportRatioButtons = [...document.querySelectorAll('[data-export-ratio]')];
+const exportQualityButtons = [...document.querySelectorAll('[data-export-quality]')];
+const exportFpsButtons = [...document.querySelectorAll('[data-export-fps]')];
 const mapStyleSelect = document.getElementById('map-style-select');
 const speedSelect = document.getElementById('speed-select');
 const cameraModeSelect = document.getElementById('camera-mode');
@@ -122,6 +130,72 @@ const timeline = document.getElementById('timeline');
 const iconPlay = btnPlay.querySelector('.icon-play');
 const iconPause = btnPlay.querySelector('.icon-pause');
 
+function getExportConfig() {
+  return getProjectState().document.project.export || {};
+}
+
+function syncExportSettingsUI() {
+  const config = getExportConfig();
+  const aspectRatio = config.aspectRatio || '16:9';
+  const quality = ['low', 'medium', 'high', 'ultra'].includes(config.quality)
+    ? config.quality
+    : config.quality === 'draft'
+      ? 'low'
+      : 'medium';
+  const fps = [24, 30, 60].includes(Number(config.fps)) ? Number(config.fps) : 30;
+  const resolution = getExportResolution(quality, aspectRatio);
+
+  exportRatioButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.exportRatio === aspectRatio);
+  });
+  exportQualityButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.exportQuality === quality);
+  });
+  exportFpsButtons.forEach((button) => {
+    button.classList.toggle('active', Number(button.dataset.exportFps) === fps);
+  });
+  if (exportResolutionSummary) {
+    exportResolutionSummary.textContent = `${resolution.width} × ${resolution.height}`;
+  }
+}
+
+function setExportConfig(patch) {
+  const current = getExportConfig();
+  const next = { ...current, ...patch };
+  const quality = ['low', 'medium', 'high', 'ultra'].includes(next.quality)
+    ? next.quality
+    : 'medium';
+  const aspectRatio = ['16:9', '1:1', '9:16'].includes(next.aspectRatio)
+    ? next.aspectRatio
+    : '16:9';
+  const fps = [24, 30, 60].includes(Number(next.fps)) ? Number(next.fps) : 30;
+  const resolution = getExportResolution(quality, aspectRatio);
+
+  store.dispatch({
+    type: 'project/set-export-config',
+    payload: {
+      config: {
+        ...patch,
+        quality,
+        aspectRatio,
+        fps,
+        resolution,
+      },
+    },
+  });
+  syncExportSettingsUI();
+}
+
+function openExportSettings() {
+  if (!getRouteDocument()) return;
+  syncExportSettingsUI();
+  exportSettingsModal?.classList.remove('hidden');
+}
+
+function closeExportSettings() {
+  exportSettingsModal?.classList.add('hidden');
+}
+
 function setEditorTab(tabId) {
   editorTabs.forEach((tab) => {
     tab.classList.toggle('active', tab.dataset.editorTab === tabId);
@@ -133,6 +207,40 @@ function setEditorTab(tabId) {
 
 editorTabs.forEach((tab) => {
   tab.addEventListener('click', () => setEditorTab(tab.dataset.editorTab));
+});
+
+btnExport?.addEventListener('click', openExportSettings);
+btnCloseExportSettings?.addEventListener('click', closeExportSettings);
+exportSettingsModal?.addEventListener('click', (event) => {
+  if (event.target === exportSettingsModal) closeExportSettings();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !exportSettingsModal?.classList.contains('hidden')) {
+    closeExportSettings();
+  }
+});
+
+exportRatioButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    setExportConfig({ aspectRatio: button.dataset.exportRatio });
+  });
+});
+exportQualityButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    setExportConfig({ quality: button.dataset.exportQuality });
+  });
+});
+exportFpsButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    setExportConfig({ fps: Number(button.dataset.exportFps) });
+  });
+});
+
+btnGenerateExport?.addEventListener('click', () => {
+  if (!getRouteDocument()) return;
+  closeExportSettings();
+  shell.setStatus('Exporting MP4…');
+  kernel?.emit('export-video', { module: 'export' });
 });
 
 function openGpxPicker() {
@@ -669,6 +777,9 @@ function renderProjectState() {
     setPlaybackControlsEnabled(false);
   }
   updateExportEnabled();
+  if (exportSettingsModal && !exportSettingsModal.classList.contains('hidden')) {
+    syncExportSettingsUI();
+  }
 }
 
 function initKernel() {
