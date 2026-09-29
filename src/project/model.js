@@ -121,8 +121,9 @@ export function createEmptyProjectDocument() {
       },
       export: {
         format: 'mp4',
-        quality: 'standard',
-        resolution: '1920x1080',
+        aspectRatio: '16:9',
+        quality: 'medium',
+        resolution: { width: 1920, height: 1080 },
         fps: 30,
       },
       timeline: {
