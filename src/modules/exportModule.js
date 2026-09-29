@@ -15,11 +15,11 @@ export function createExportModule(ctx) {
           const project = ctx.getState().document.project;
           const configured = Array.isArray(project.overlays?.visibleStats)
             ? project.overlays.visibleStats
-            : ['distance', 'pace', 'altitude'];
+            : ['altitude', 'distance', 'speed'];
           const hasTime = Boolean(project.route?.stats?.hasTime);
-          return configured.filter(
-            (id) => !['time', 'speed', 'pace'].includes(id) || hasTime,
-          );
+          return configured
+            .filter((id) => !['time', 'speed', 'pace'].includes(id) || hasTime)
+            .slice(0, 3);
         },
         onProgress: (p) => {
           const pct = Math.round((p.frame / p.totalFrames) * 100);
