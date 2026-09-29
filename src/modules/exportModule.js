@@ -46,6 +46,8 @@ export function createExportModule(ctx) {
         getExporter()
           .exportVideo({
             quality: normalizeExportQuality(config?.quality),
+            aspectRatio: config?.aspectRatio || '16:9',
+            fps: config?.fps || 30,
             format: config?.format || 'mp4',
             filenameBase,
           })
