@@ -117,6 +117,18 @@
             </select>
           </section>
 
+          <section class="side-section" id="photos-section">
+            <div class="section-heading-row">
+              <h2>Photos</h2>
+              <span class="section-count" id="photos-count">0</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-block" id="btn-add-photos" disabled>
+              Add photos
+            </button>
+            <p class="field-hint">GPS/time photos are placed automatically. Unmatched photos can be placed on the route.</p>
+            <div class="photo-list" id="photo-list"></div>
+          </section>
+
           <p class="side-status" id="status-message">Drop a GPX to create a cinematic trail film</p>
         </aside>
 
@@ -124,6 +136,19 @@
           <div class="viewport-canvas" id="viewport-canvas">
             <div id="viewport-map-wrap">
               <div id="map"></div>
+            </div>
+
+            <div id="photo-moment" class="photo-moment" aria-hidden="true">
+              <div class="photo-moment-frame">
+                <img id="photo-moment-image" alt="" />
+                <div class="photo-moment-progress-track">
+                  <div id="photo-moment-progress" class="photo-moment-progress"></div>
+                </div>
+                <div class="photo-moment-caption">
+                  <strong id="photo-moment-title" class="hidden"></strong>
+                  <span id="photo-moment-meta" class="hidden"></span>
+                </div>
+              </div>
             </div>
 
             <div class="film-stats hidden" id="film-stats" aria-live="off">
@@ -177,6 +202,8 @@
     </div>
 
     <input type="file" id="gpx-input" class="gpx-file-input" accept=".gpx,application/gpx+xml,text/xml" />
+    <input type="file" id="photo-input" class="gpx-file-input" accept="image/*" multiple />
+
 
     <script type="module" src="/src/main.js"></script>
   </body>
