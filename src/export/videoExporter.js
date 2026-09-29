@@ -24,7 +24,7 @@ export function normalizeExportQuality(value) {
 }
 
 export function createVideoExporter(deps) {
-  const { map, animator, getDuration, onProgress, onStatus } = deps;
+  const { map, animator, getDuration, getPhotos, onProgress, onStatus } = deps;
   let abortController = null;
 
   function abort() {
@@ -54,6 +54,10 @@ export function createVideoExporter(deps) {
 
       const routeDurationSec = getDuration();
       if (routeDurationSec <= 0) throw new Error('Invalid animation duration');
+      const photos = (getPhotos?.() || [])
+        .filter((photo) => Number.isFinite(photo.progress) && photo.url)
+        .sort((a, b) => a.progress - b.progress);
+      const photoAssets = await loadPhotoAssets(photos, signal);
 
       const introMs = animator.getIntroDurationMs?.() ?? 1500;
       const outroMs = animator.getOutroDurationMs?.() ?? 3000;
@@ -67,7 +71,7 @@ export function createVideoExporter(deps) {
         throw new Error('Could not create export composition canvas');
       }
 
-      const drawCompositeFrame = () => {
+      const drawCompositeFrame = (photoMoment = null) => {
         const width = compositeCanvas.width;
         const height = compositeCanvas.height;
 
@@ -82,6 +86,17 @@ export function createVideoExporter(deps) {
         );
         drawFilmStats(compositeCtx, width, height);
         drawElevationProfile(compositeCtx, width, height);
+        if (photoMoment?.photo && photoMoment?.image) {
+          drawPhotoMoment(
+            compositeCtx,
+            width,
+            height,
+            photoMoment.photo,
+            photoMoment.image,
+            photoMoment.elapsedMs,
+            photoMoment.durationMs,
+          );
+        }
       };
 
       if (format === 'mp4') {
@@ -114,6 +129,8 @@ export function createVideoExporter(deps) {
             routeDurationSec,
             introMs,
             outroMs,
+            photos,
+            photoAssets,
             signal,
             onProgress,
             onStatus,
@@ -140,6 +157,8 @@ export function createVideoExporter(deps) {
         routeDurationSec,
         introMs,
         outroMs,
+        photos,
+        photoAssets,
         signal,
         onProgress,
         onStatus,
@@ -163,6 +182,8 @@ async function exportDeterministicMp4({
   routeDurationSec,
   introMs,
   outroMs,
+  photos,
+  photoAssets,
   signal,
   onProgress,
   onStatus,
@@ -174,24 +195,27 @@ async function exportDeterministicMp4({
   const introFrames = Math.max(0, Math.round((introMs / 1000) * fps));
   const routeFrames = Math.max(1, Math.round(routeDurationSec * fps));
   const outroFrames = Math.max(1, Math.round((outroMs / 1000) * fps));
-  const totalFrames = introFrames + routeFrames + outroFrames;
+  const photoFrames = photos.reduce(
+    (sum, photo) => sum + Math.max(1, Math.round(((photo.displayDurationMs || 3000) / 1000) * fps)),
+    0,
+  );
+  const totalFrames = introFrames + routeFrames + photoFrames + outroFrames;
 
   let encodedFrame = 0;
 
-  const encodeCurrent = async (timestampMs) => {
+  const encodeCurrent = async () => {
     if (signal.aborted) throw new Error('export_aborted');
-    drawCompositeFrame();
     await encoder.encodeCanvas(
       compositeCanvas,
-      Math.round(timestampMs * 1000),
+      Math.round(encodedFrame * frameDurationMicros),
       frameDurationMicros,
     );
     encodedFrame += 1;
     onProgress?.({
       frame: encodedFrame,
       totalFrames,
-      time: timestampMs / 1000,
-      duration: (introMs + routeDurationSec * 1000 + outroMs) / 1000,
+      time: encodedFrame / fps,
+      duration: totalFrames / fps,
     });
   };
 
@@ -203,6 +227,7 @@ async function exportDeterministicMp4({
   drawCompositeFrame();
 
   onStatus?.('Rendering route…');
+  let nextPhotoIndex = 0;
   for (let i = 0; i < routeFrames; i += 1) {
     if (signal.aborted) throw new Error('export_aborted');
 
@@ -219,12 +244,32 @@ async function exportDeterministicMp4({
     map.triggerRepaint?.();
     await waitForMapRender(map, signal);
 
-    const timestampMs = introMs + i * frameDurationMs;
-    await encodeCurrent(timestampMs);
+    drawCompositeFrame();
+    await encodeCurrent();
+
+    const dueProgress = progress + 1e-9;
+    while (nextPhotoIndex < photos.length && photos[nextPhotoIndex].progress <= dueProgress) {
+      const photo = photos[nextPhotoIndex];
+      const image = photoAssets.get(photo.id);
+      nextPhotoIndex += 1;
+      if (!image) continue;
+
+      onStatus?.('Rendering photo moments…');
+      const durationMs = Math.max(500, photo.displayDurationMs || 3000);
+      const holdFrames = Math.max(1, Math.round((durationMs / 1000) * fps));
+      for (let holdFrame = 0; holdFrame < holdFrames; holdFrame += 1) {
+        if (signal.aborted) throw new Error('export_aborted');
+        const elapsedMs = holdFrames <= 1
+          ? durationMs
+          : (holdFrame / (holdFrames - 1)) * durationMs;
+        drawCompositeFrame({ photo, image, elapsedMs, durationMs });
+        await encodeCurrent();
+      }
+      onStatus?.('Rendering route…');
+    }
   }
 
   onStatus?.('Rendering cinematic outro…');
-  const outroOffsetMs = introMs + routeDurationSec * 1000;
   animator.beginExportOutro?.();
 
   for (let i = 0; i < outroFrames; i += 1) {
@@ -243,7 +288,8 @@ async function exportDeterministicMp4({
 
     map.triggerRepaint?.();
     await waitForMapRender(map, signal);
-    await encodeCurrent(outroOffsetMs + i * frameDurationMs);
+    drawCompositeFrame();
+    await encodeCurrent();
   }
   animator.resetExportOutro?.();
 
@@ -260,6 +306,8 @@ async function exportWebmFallback({
   routeDurationSec,
   introMs,
   outroMs,
+  photos,
+  photoAssets,
   signal,
   onProgress,
   onStatus,
@@ -301,10 +349,17 @@ async function exportWebmFallback({
 
   onStatus?.('Rendering WebM…');
 
-  const totalFrames = Math.ceil(routeDurationSec * quality.fps);
+  const routeFrames = Math.ceil(routeDurationSec * quality.fps);
+  const photoFrames = photos.reduce(
+    (sum, photo) => sum + Math.max(1, Math.round(((photo.displayDurationMs || 3000) / 1000) * quality.fps)),
+    0,
+  );
+  const totalFrames = routeFrames + photoFrames;
   const frameInterval = 1000 / quality.fps;
+  let outputFrame = 0;
+  let nextPhotoIndex = 0;
 
-  for (let frame = 0; frame < totalFrames; frame += 1) {
+  for (let frame = 0; frame < routeFrames; frame += 1) {
     if (signal.aborted) throw new Error('export_aborted');
 
     const t = frame / quality.fps;
@@ -322,12 +377,31 @@ async function exportWebmFallback({
     await waitForMapRender(map, signal);
     drawCompositeFrame();
     await waitMs(Math.max(0, frameInterval - 8), signal);
+    outputFrame += 1;
+
+    while (nextPhotoIndex < photos.length && photos[nextPhotoIndex].progress <= Math.min(1, t / Math.max(routeDurationSec, 0.001) + 1e-9)) {
+      const photo = photos[nextPhotoIndex];
+      const image = photoAssets.get(photo.id);
+      nextPhotoIndex += 1;
+      if (!image) continue;
+
+      const durationMs = Math.max(500, photo.displayDurationMs || 3000);
+      const holdFrames = Math.max(1, Math.round((durationMs / 1000) * quality.fps));
+      for (let holdFrame = 0; holdFrame < holdFrames; holdFrame += 1) {
+        const elapsedMs = holdFrames <= 1
+          ? durationMs
+          : (holdFrame / (holdFrames - 1)) * durationMs;
+        drawCompositeFrame({ photo, image, elapsedMs, durationMs });
+        await waitMs(Math.max(1, frameInterval - 2), signal);
+        outputFrame += 1;
+      }
+    }
 
     onProgress?.({
-      frame,
+      frame: outputFrame,
       totalFrames,
-      time: t + introMs / 1000,
-      duration: routeDurationSec + introMs / 1000 + outroMs / 1000,
+      time: outputFrame / quality.fps,
+      duration: totalFrames / quality.fps + outroMs / 1000,
     });
   }
 
@@ -347,6 +421,84 @@ async function exportWebmFallback({
     mimeType: 'video/webm',
     filename: `${filenameBase}.webm`,
   };
+}
+
+async function loadPhotoAssets(photos, signal) {
+  const assets = new Map();
+  await Promise.all((photos || []).map(async (photo) => {
+    if (signal?.aborted) throw new Error('export_aborted');
+    try {
+      const image = await loadImage(photo.url, signal);
+      assets.set(photo.id, image);
+    } catch {
+      // A missing photo should not abort an otherwise valid route export.
+    }
+  }));
+  return assets;
+}
+
+function loadImage(url, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('export_aborted'));
+      return;
+    }
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('photo_load_failed'));
+    signal?.addEventListener('abort', () => reject(new Error('export_aborted')), { once: true });
+    image.src = url;
+  });
+}
+
+function photoMomentStyle(elapsedMs, durationMs) {
+  const enterMs = 450;
+  const exitMs = 350;
+  const elapsed = Math.max(0, elapsedMs);
+  if (elapsed < enterMs) {
+    const t = Math.min(1, elapsed / enterMs);
+    const eased = 1 - (1 - t) ** 3;
+    return { opacity: eased, scale: 0.15 + 0.85 * eased };
+  }
+  const exitStart = Math.max(enterMs, durationMs - exitMs);
+  if (elapsed > exitStart) {
+    const t = Math.min(1, (elapsed - exitStart) / Math.max(1, durationMs - exitStart));
+    const eased = t ** 3;
+    return { opacity: 1 - eased, scale: 1 - 0.15 * eased };
+  }
+  return { opacity: 1, scale: 1 };
+}
+
+function drawPhotoMoment(ctx, width, height, photo, image, elapsedMs, durationMs) {
+  const style = photoMomentStyle(elapsedMs, durationMs);
+  if (style.opacity <= 0 || !image?.naturalWidth || !image?.naturalHeight) return;
+
+  const maxW = width * 0.72;
+  const maxH = height * 0.72;
+  const imageAspect = image.naturalWidth / image.naturalHeight;
+  const boxAspect = maxW / maxH;
+  let drawW = maxW;
+  let drawH = maxH;
+  if (imageAspect > boxAspect) drawH = maxW / imageAspect;
+  else drawW = maxH * imageAspect;
+
+  drawW *= style.scale;
+  drawH *= style.scale;
+  const x = (width - drawW) / 2;
+  const y = (height - drawH) / 2;
+
+  ctx.save();
+  ctx.globalAlpha = style.opacity;
+  roundRect(ctx, x, y, drawW, drawH, Math.max(12, width * 0.009));
+  ctx.clip();
+  ctx.drawImage(image, x, y, drawW, drawH);
+
+  const progress = Math.max(0, Math.min(1, elapsedMs / Math.max(1, durationMs)));
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.fillRect(x, y, drawW, Math.max(3, height * 0.003));
+  ctx.fillStyle = '#0f9ad1';
+  ctx.fillRect(x, y, drawW * progress, Math.max(3, height * 0.003));
+  ctx.restore();
 }
 
 function drawCover(ctx, sourceCanvas, targetWidth, targetHeight) {
