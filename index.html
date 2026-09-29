@@ -117,11 +117,11 @@
               </div>
               <div class="stats-picker" id="stats-picker">
                 <label class="stats-choice"><input type="checkbox" data-stat-toggle="distance" checked /><span>Distance</span></label>
-                <label class="stats-choice"><input type="checkbox" data-stat-toggle="gain" checked /><span>Gain</span></label>
-                <label class="stats-choice"><input type="checkbox" data-stat-toggle="altitude" checked /><span>Altitude</span></label>
-                <label class="stats-choice"><input type="checkbox" data-stat-toggle="time" checked /><span>Time</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="gain" /><span>Gain</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="altitude" checked /><span>Elevation</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="time" /><span>Time</span></label>
                 <label class="stats-choice"><input type="checkbox" data-stat-toggle="speed" /><span>Speed</span></label>
-                <label class="stats-choice"><input type="checkbox" data-stat-toggle="pace" /><span>Pace</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="pace" checked /><span>Pace</span></label>
               </div>
             </section>
 
@@ -225,12 +225,12 @@
             </div>
 
             <div class="film-stats hidden" id="film-stats" aria-live="off">
-              <div data-live-stat="distance"><span>Distance</span><strong id="live-distance">—</strong></div>
-              <div data-live-stat="gain"><span>Gain</span><strong id="live-gain">—</strong></div>
-              <div data-live-stat="altitude"><span>Altitude</span><strong id="live-elevation">—</strong></div>
-              <div data-live-stat="time"><span>Time</span><strong id="live-time">00:00</strong></div>
-              <div data-live-stat="speed"><span>Speed</span><strong id="live-speed">—</strong></div>
-              <div data-live-stat="pace"><span>Pace</span><strong id="live-pace">—</strong></div>
+              <div data-live-stat="distance"><span>Distance</span><strong id="live-distance">—</strong><small id="live-distance-unit"></small></div>
+              <div data-live-stat="gain"><span>Gain</span><strong id="live-gain">—</strong><small id="live-gain-unit"></small></div>
+              <div data-live-stat="altitude"><span>Elevation</span><strong id="live-elevation">—</strong><small id="live-elevation-unit"></small></div>
+              <div data-live-stat="time"><span>Time</span><strong id="live-time">00:00</strong><small id="live-time-unit"></small></div>
+              <div data-live-stat="speed"><span>Speed</span><strong id="live-speed">—</strong><small id="live-speed-unit"></small></div>
+              <div data-live-stat="pace"><span>Pace</span><strong id="live-pace">—</strong><small id="live-pace-unit"></small></div>
             </div>
 
             <div class="elevation-profile-wrap hidden" id="elevation-profile-wrap">
