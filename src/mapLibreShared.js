@@ -375,19 +375,9 @@ export function applyCinematicPresentation(map, {
       }
 
       if (hideLabels && layer.type === 'symbol') {
-        const sourceLayer = String(layer['source-layer'] || '').toLowerCase();
-        const normalizedId = String(id).toLowerCase();
-
-        // OpenMapTiles/OpenFreeMap road-name symbols normally come from
-        // transportation_name. Keep those, plus defensively named road/street
-        // label layers. Everything else (POI/transit/bus/station/place icons
-        // and labels) stays hidden.
-        const isRoadLabel =
-          sourceLayer === 'transportation_name' ||
-          sourceLayer.includes('transportation_name') ||
-          /road|street|highway|motorway|trunk|primary|secondary|tertiary|residential|service/.test(normalizedId);
-
-        map.setLayoutProperty(id, 'visibility', isRoadLabel ? 'visible' : 'none');
+        // Film presentation: no map text/icons at all. This includes road and
+        // street names, place labels, POIs, transit labels and symbols.
+        map.setLayoutProperty(id, 'visibility', 'none');
         continue;
       }
 
