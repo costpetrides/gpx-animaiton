@@ -985,11 +985,22 @@ function applyTrailReplaySuggestedDistance(parsed) {
 
   if (!canApply) return;
 
-  const level = getSuggestedFollowBehindZoomLevel({
+  const trailReplaySuggestedLevel = getSuggestedFollowBehindZoomLevel({
     totalDistanceMeters,
     videoDurationSeconds,
     latitudeDeg,
   });
+
+  // TrailReplay's current picker is tuned around its own replay timing.
+  // Our default film is always a compressed 30 s cinematic, so the same
+  // suggestion can start visibly too tight. Keep TrailReplay's route-aware
+  // calculation, then widen the automatic Cinematic starting shot by two
+  // actual slider stops. The user's manual choice is never offset.
+  const suggestedStopIndex = getFollowBehindStopIndexForLevel(
+    trailReplaySuggestedLevel,
+  );
+  const cinematicStopIndex = Math.max(0, suggestedStopIndex - 2);
+  const level = getFollowBehindLevelForStopIndex(cinematicStopIndex);
 
   lastSuggestedRouteKey = routeKey;
   lastSuggestedFollowLevel = level;
