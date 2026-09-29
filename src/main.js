@@ -217,7 +217,12 @@ function syncStatsUI() {
     item.classList.toggle('hidden', !available.has(item.dataset.liveStat));
   });
 
-  filmStats?.classList.toggle('hidden', !hasRoute || available.size === 0);
+  if (filmStats) {
+    filmStats.classList.toggle('hidden', !hasRoute || available.size === 0);
+    const count = available.size;
+    const columns = count <= 2 ? count : count <= 4 ? 2 : 3;
+    filmStats.style.gridTemplateColumns = `repeat(${Math.max(1, columns)}, minmax(92px, max-content))`;
+  }
 }
 
 statToggles.forEach((input) => {
