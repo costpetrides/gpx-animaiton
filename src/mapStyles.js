@@ -1,12 +1,12 @@
 /**
  * Central map basemap configuration — matches Peak Explorer.
- * Dark is the global default.
+ * Outdoor is the global default.
  *
  * OpenFreeMap vector styles only (commercial-safe, no API key).
  * 3D is a separate toggle (terrain / buildings) — not a map style.
  */
 
-export const DEFAULT_MAP_STYLE_ID = 'dark';
+export const DEFAULT_MAP_STYLE_ID = 'outdoor';
 
 export const MAP_STYLES = {
   outdoor: {
@@ -41,7 +41,7 @@ const STYLE_ALIASES = {
 };
 
 /** Picker order — default style first. 3D is never a style entry. */
-export const MAP_STYLE_ORDER = ['dark', 'outdoor', 'positron'];
+export const MAP_STYLE_ORDER = ['outdoor', 'positron', 'dark'];
 
 /**
  * @param {string | undefined | null} styleId
