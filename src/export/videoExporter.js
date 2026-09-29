@@ -136,7 +136,7 @@ export function createVideoExporter(deps) {
           width,
           height,
           crop,
-          getVisibleStats?.() || ['distance', 'gain', 'altitude', 'time'],
+          getVisibleStats?.() || ['distance', 'pace', 'altitude'],
         );
         drawElevationProfile(compositeCtx, width, height, crop);
         if (photoMoment?.photo && photoMoment?.image) {
@@ -766,51 +766,75 @@ async function captureRealtimePhase({
   drawCompositeFrame();
 }
 
+function splitExportStat(value) {
+  const text = String(value ?? '—').trim();
+  if (!text || text === '—') return { value: '—', unit: '' };
+  const match = text.match(/^(.+?)\s+(km\/h|km|m|\/km)$/i);
+  if (!match) return { value: text, unit: '' };
+  return { value: match[1], unit: match[2] };
+}
+
 function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
   const valueById = {
-    distance: ['DISTANCE', document.getElementById('live-distance')?.textContent || '—'],
-    gain: ['GAIN', document.getElementById('live-gain')?.textContent || '—'],
-    altitude: ['ALTITUDE', document.getElementById('live-elevation')?.textContent || '—'],
-    time: ['TIME', document.getElementById('live-time')?.textContent || '00:00'],
-    speed: ['SPEED', document.getElementById('live-speed')?.textContent || '—'],
-    pace: ['PACE', document.getElementById('live-pace')?.textContent || '—'],
+    distance: ['DISTANCE', document.getElementById('live-distance')?.textContent || '—', document.getElementById('live-distance-unit')?.textContent || ''],
+    gain: ['GAIN', document.getElementById('live-gain')?.textContent || '—', document.getElementById('live-gain-unit')?.textContent || ''],
+    altitude: ['ELEVATION', document.getElementById('live-elevation')?.textContent || '—', document.getElementById('live-elevation-unit')?.textContent || ''],
+    time: ['TIME', document.getElementById('live-time')?.textContent || '00:00', document.getElementById('live-time-unit')?.textContent || ''],
+    speed: ['SPEED', document.getElementById('live-speed')?.textContent || '—', document.getElementById('live-speed-unit')?.textContent || ''],
+    pace: ['PACE', document.getElementById('live-pace')?.textContent || '—', document.getElementById('live-pace-unit')?.textContent || ''],
   };
-  const values = visibleStats.map((id) => valueById[id]).filter(Boolean);
+
+  const values = visibleStats
+    .map((id) => valueById[id])
+    .filter(Boolean)
+    .slice(0, 6);
   if (values.length === 0) return;
 
-  // TrailReplay scales overlays from the actual export crop, not from the
-  // whole desktop viewport. This keeps portrait/square stats readable.
   const scale = crop?.scaleToRecording || 1;
-  const columns = width <= height ? Math.min(2, values.length) : Math.min(3, values.length);
-  const rows = Math.ceil(values.length / Math.max(1, columns));
-  const boxW = Math.max(132, columns * 110) * scale;
-  const boxH = Math.max(52, rows * 46) * scale;
-  const margin = 18 * scale;
-  const narrow = width <= height;
-  const x = narrow ? (width - boxW) / 2 : margin;
-  const y = margin;
+  const columns = 3;
+  const rows = Math.ceil(values.length / columns);
+
+  // Telemetry occupies the upper portion of the export frame with no card.
+  // Values flow left-to-right across three fixed columns, then onto row two.
+  const marginX = Math.max(18 * scale, width * 0.055);
+  const top = Math.max(20 * scale, height * 0.04);
+  const usableWidth = Math.max(1, width - marginX * 2);
+  const colW = usableWidth / columns;
+  const rowH = Math.max(72 * scale, height * 0.10);
+
+  const labelPx = Math.max(10, 12 * scale);
+  const valuePx = Math.max(20, 27 * scale);
+  const unitPx = Math.max(10, 12 * scale);
 
   ctx.save();
-  ctx.fillStyle = 'rgba(8,10,12,0.62)';
-  roundRect(ctx, x, y, boxW, boxH, 12 * scale);
-  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = Math.max(2, 4 * scale);
+  ctx.shadowOffsetY = Math.max(1, 1.5 * scale);
 
-  const colW = boxW / Math.max(1, columns);
-  const rowH = boxH / Math.max(1, rows);
-
-  values.forEach(([label, value], index) => {
+  values.forEach(([label, rawValue, rawUnit], index) => {
     const col = index % columns;
     const row = Math.floor(index / columns);
-    const tx = x + 12 * scale + col * colW;
-    const ty = y + 21 * scale + row * rowH;
+    const cx = marginX + colW * col + colW / 2;
+    const y = top + row * rowH;
+    const parsed = rawUnit
+      ? { value: rawValue, unit: rawUnit }
+      : splitExportStat(rawValue);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.66)';
-    ctx.font = `${Math.max(8, 9 * scale)}px sans-serif`;
-    ctx.fillText(label, tx, ty);
+    ctx.fillStyle = 'rgba(255,255,255,0.90)';
+    ctx.font = `700 ${labelPx}px sans-serif`;
+    ctx.fillText(label, cx, y + labelPx);
 
     ctx.fillStyle = '#fff';
-    ctx.font = `600 ${Math.max(10, 13 * scale)}px monospace`;
-    ctx.fillText(String(value), tx, ty + 18 * scale);
+    ctx.font = `700 ${valuePx}px sans-serif`;
+    ctx.fillText(String(parsed.value), cx, y + labelPx + valuePx + 6 * scale);
+
+    if (parsed.unit) {
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.font = `700 ${unitPx}px sans-serif`;
+      ctx.fillText(String(parsed.unit), cx, y + labelPx + valuePx + unitPx + 12 * scale);
+    }
   });
 
   ctx.restore();
