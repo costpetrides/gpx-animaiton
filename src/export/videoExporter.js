@@ -816,7 +816,7 @@ function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
 
   ctx.fillStyle = '#fff';
   ctx.font = `800 ${brandPx}px sans-serif`;
-  ctx.fillText('RYODO', width / 2, top + brandPx);
+  ctx.fillText('Ryodo', width / 2, top + brandPx);
 
   values.forEach(([label, rawValue, rawUnit], index) => {
     const cx = marginX + colW * index + colW / 2;
