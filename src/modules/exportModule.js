@@ -15,7 +15,7 @@ export function createExportModule(ctx) {
           const project = ctx.getState().document.project;
           const configured = Array.isArray(project.overlays?.visibleStats)
             ? project.overlays.visibleStats
-            : ['distance', 'gain', 'altitude', 'time'];
+            : ['distance', 'pace', 'altitude'];
           const hasTime = Boolean(project.route?.stats?.hasTime);
           return configured.filter(
             (id) => !['time', 'speed', 'pace'].includes(id) || hasTime,
