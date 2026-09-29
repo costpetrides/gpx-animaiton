@@ -789,24 +789,23 @@ function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
   const values = visibleStats
     .map((id) => valueById[id])
     .filter(Boolean)
-    .slice(0, 6);
+    .slice(0, 3);
   if (values.length === 0) return;
 
   const scale = crop?.scaleToRecording || 1;
   const columns = 3;
-  const rows = Math.ceil(values.length / columns);
-
-  // Telemetry occupies the upper portion of the export frame with no card.
-  // Values flow left-to-right across three fixed columns, then onto row two.
   const marginX = Math.max(18 * scale, width * 0.055);
   const top = Math.max(20 * scale, height * 0.04);
   const usableWidth = Math.max(1, width - marginX * 2);
   const colW = usableWidth / columns;
-  const rowH = Math.max(72 * scale, height * 0.10);
 
+  const brandPx = Math.max(16, 21 * scale);
   const labelPx = Math.max(10, 12 * scale);
   const valuePx = Math.max(20, 27 * scale);
   const unitPx = Math.max(10, 12 * scale);
+  const brandGap = Math.max(14 * scale, 18 * scale);
+  const statsTop = top + brandPx + brandGap;
+  const centerLift = Math.max(8 * scale, 10 * scale);
 
   ctx.save();
   ctx.textAlign = 'center';
@@ -815,11 +814,14 @@ function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
   ctx.shadowBlur = Math.max(2, 4 * scale);
   ctx.shadowOffsetY = Math.max(1, 1.5 * scale);
 
+  ctx.fillStyle = '#fff';
+  ctx.font = `800 ${brandPx}px sans-serif`;
+  ctx.fillText('RYODO', width / 2, top + brandPx);
+
   values.forEach(([label, rawValue, rawUnit], index) => {
-    const col = index % columns;
-    const row = Math.floor(index / columns);
-    const cx = marginX + colW * col + colW / 2;
-    const y = top + row * rowH;
+    const cx = marginX + colW * index + colW / 2;
+    const lift = index === 1 ? centerLift : 0;
+    const y = statsTop - lift;
     const parsed = rawUnit
       ? { value: rawValue, unit: rawUnit }
       : splitExportStat(rawValue);
