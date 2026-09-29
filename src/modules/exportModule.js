@@ -10,6 +10,7 @@ export function createExportModule(ctx) {
         map: ctx.map,
         animator: ctx.animator,
         getDuration: ctx.getDuration,
+        getPhotos: () => ctx.getState().document.project.media?.photos || [],
         onProgress: (p) => {
           const pct = Math.round((p.frame / p.totalFrames) * 100);
           ctx.shell?.setStatus(`Exporting ${pct}%`);
