@@ -1215,3 +1215,63 @@ select {
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
+
+
+/* Selectable film stats */
+.stats-config-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.stats-config-title {
+  margin-bottom: 2px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stats-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.stats-choice {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255,255,255,0.025);
+  color: var(--text-2);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stats-choice:hover {
+  border-color: rgba(255,255,255,0.18);
+  color: var(--text);
+}
+
+.stats-choice input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.stats-choice:has(input:checked) {
+  border-color: rgba(15,154,209,0.42);
+  background: rgba(15,154,209,0.08);
+  color: #dff5ff;
+}
+
+.stats-choice.is-unavailable {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.film-stats > div.hidden {
+  display: none;
+}
