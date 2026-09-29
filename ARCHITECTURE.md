@@ -14,3 +14,12 @@ Sequence:
 The steady playback camera is deterministic from route progress, with stable
 route bearing and restrained terrain-aware zoom/pitch adjustments. DEM handling
 is a safety/clearance layer rather than a per-frame cinematic shot selector.
+
+## Product shells
+
+The desktop GPX editor is the full authoring surface.
+
+Ryodo mobile is a constrained shell over the same renderer. Its product contract
+lives in `src/mobile/ryodoMobileProfile.js`: fixed portrait 9:16 cinematic MP4,
+only Outdoor/Positron/Dark map-style selection, no user zoom/camera controls, and
+route photos supplied by the host app rather than imported inside the renderer.
