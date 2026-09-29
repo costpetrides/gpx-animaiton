@@ -18,7 +18,7 @@ export const TRAIL_REPLAY_CAMERA_MODES = [
 ];
 
 export const DEFAULT_TRAIL_REPLAY_CAMERA_MODE = 'cinematic';
-export const DEFAULT_CAMERA_STABILITY = 0.3;
+export const DEFAULT_CAMERA_STABILITY = 0.5;
 
 export const DEFAULT_FOLLOW_BEHIND_LEVEL = 33;
 export const FOLLOW_BEHIND_STOP_LEVELS = [0, 11, 22, 33, 49.5, 66, 83, 100];
