@@ -293,33 +293,56 @@ export function createMapPlaybackRenderer(map) {
   }
 
   function whenReady(fn) {
-    const attempt = () => {
+    let settled = false;
+    let pollFrame = 0;
+
+    const cleanup = () => {
+      if (pollFrame) cancelAnimationFrame(pollFrame);
+      map.off('style.load', onStyleLoad);
+      map.off('load', onMapLoad);
+    };
+
+    const finish = () => {
+      if (settled) return true;
       if (!map.isStyleLoaded()) return false;
+
+      settled = true;
+      cleanup();
       addLayers();
       fn();
       return true;
     };
 
-    if (attempt()) return;
+    const onStyleLoad = () => {
+      finish();
+    };
+    const onMapLoad = () => {
+      finish();
+    };
 
-    const onStyleLoad = () => attempt();
-    const onMapLoad = () => attempt();
+    if (finish()) return;
 
     map.once('style.load', onStyleLoad);
     map.once('load', onMapLoad);
 
     let attempts = 0;
     const poll = () => {
-      if (attempt()) return;
+      if (settled || finish()) return;
+
       attempts += 1;
       if (attempts > 240) {
+        // Last-resort continuation is still one-shot. If style readiness has
+        // not arrived, let the caller's normal error handling deal with any
+        // layer setup failure rather than firing the callback repeatedly.
+        settled = true;
+        cleanup();
         addLayers();
         fn();
         return;
       }
-      requestAnimationFrame(poll);
+      pollFrame = requestAnimationFrame(poll);
     };
-    requestAnimationFrame(poll);
+    pollFrame = requestAnimationFrame(poll);
   }
 
   function clear() {
