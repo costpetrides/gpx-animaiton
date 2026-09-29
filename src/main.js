@@ -182,7 +182,7 @@ function updateExportCropPreview() {
   if (exportCropRatioLabel) exportCropRatioLabel.textContent = ratio;
 }
 
-const DEFAULT_VISIBLE_STATS = ['distance', 'gain', 'altitude', 'time'];
+const DEFAULT_VISIBLE_STATS = ['distance', 'pace', 'altitude'];
 const TIME_DEPENDENT_STATS = new Set(['time', 'speed', 'pace']);
 
 function getConfiguredVisibleStats() {
@@ -196,6 +196,22 @@ function getAvailableVisibleStats() {
   return getConfiguredVisibleStats().filter(
     (id) => !TIME_DEPENDENT_STATS.has(id) || hasRecordedTime,
   );
+}
+
+function splitStatDisplay(value) {
+  const text = String(value ?? '—').trim();
+  if (!text || text === '—') return { value: '—', unit: '' };
+  const match = text.match(/^(.+?)\s+(km\/h|km|m|\/km)$/i);
+  if (!match) return { value: text, unit: '' };
+  return { value: match[1], unit: match[2] };
+}
+
+function setLiveStat(id, rawValue) {
+  const parsed = splitStatDisplay(rawValue);
+  const valueEl = document.getElementById(`live-${id}`);
+  const unitEl = document.getElementById(`live-${id}-unit`);
+  if (valueEl) valueEl.textContent = parsed.value;
+  if (unitEl) unitEl.textContent = parsed.unit;
 }
 
 function syncStatsUI() {
@@ -219,9 +235,7 @@ function syncStatsUI() {
 
   if (filmStats) {
     filmStats.classList.toggle('hidden', !hasRoute || available.size === 0);
-    const count = available.size;
-    const columns = count <= 2 ? count : count <= 4 ? 2 : 3;
-    filmStats.style.gridTemplateColumns = `repeat(${Math.max(1, columns)}, minmax(92px, max-content))`;
+    filmStats.style.gridTemplateColumns = 'repeat(3, minmax(0, 1fr))';
   }
 }
 
@@ -548,16 +562,12 @@ animator = createAnimator(map, {
     elevationChart?.setProgress(progress);
     photoController?.onPlaybackProgress?.(progress, Boolean(hud.playing));
 
-    const setLive = (id, value) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = value ?? '—';
-    };
-    setLive('live-distance', hud.distance);
-    setLive('live-gain', hud.elevationGain);
-    setLive('live-elevation', hud.elevation);
-    setLive('live-time', hud.recordedTime || '00:00');
-    setLive('live-speed', hud.recordedSpeed || '—');
-    setLive('live-pace', hud.pace || '—');
+    setLiveStat('distance', hud.distance);
+    setLiveStat('gain', hud.elevationGain);
+    setLiveStat('elevation', hud.elevation);
+    setLiveStat('time', hud.recordedTime || '00:00');
+    setLiveStat('speed', hud.recordedSpeed || '—');
+    setLiveStat('pace', hud.pace || '—');
 
     const routeDoc = getRouteDocument();
     if (routeDoc && Number.isFinite(total)) {
