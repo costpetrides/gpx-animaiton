@@ -1277,14 +1277,41 @@ select {
 }
 
 
-/* Strava-style map telemetry: no floating card, fixed 3 x 2 flow */
-.film-stats {
+/* Strava-style top telemetry */
+.film-telemetry {
+  position: absolute;
   top: 28px;
   left: 50%;
+  z-index: 4;
   width: min(78%, 760px);
   transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.film-brand {
+  color: #fff;
+  font-family: var(--font);
+  font-size: clamp(18px, 1.8vw, 28px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.62);
+}
+
+.film-stats {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  transform: none;
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 22px 10px;
+  align-items: end;
+  gap: 0 10px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -1295,10 +1322,16 @@ select {
 
 .film-stats > div {
   min-width: 0;
+  display: grid;
   justify-items: center;
+  align-content: end;
   gap: 2px;
   text-align: center;
   text-shadow: 0 2px 8px rgba(0,0,0,0.62);
+}
+
+.film-stats > div:nth-child(2) {
+  transform: translateY(-10px);
 }
 
 .film-stats span {
@@ -1306,6 +1339,7 @@ select {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.055em;
+  text-transform: uppercase;
 }
 
 .film-stats strong {
@@ -1328,10 +1362,22 @@ select {
 }
 
 @media (max-width: 700px) {
-  .film-stats {
+  .film-telemetry {
     top: 22px;
     width: calc(100% - 34px);
-    gap: 18px 6px;
+    gap: 11px;
+  }
+
+  .film-brand {
+    font-size: 20px;
+  }
+
+  .film-stats {
+    gap: 0 6px;
+  }
+
+  .film-stats > div:nth-child(2) {
+    transform: translateY(-8px);
   }
 
   .film-stats span {
