@@ -325,21 +325,13 @@ export function createMapPlaybackRenderer(map) {
     map.once('style.load', onStyleLoad);
     map.once('load', onMapLoad);
 
-    let attempts = 0;
     const poll = () => {
       if (settled || finish()) return;
 
-      attempts += 1;
-      if (attempts > 240) {
-        // Last-resort continuation is still one-shot. If style readiness has
-        // not arrived, let the caller's normal error handling deal with any
-        // layer setup failure rather than firing the callback repeatedly.
-        settled = true;
-        cleanup();
-        addLayers();
-        fn();
-        return;
-      }
+      // Never force route initialization before the style graph is ready.
+      // On a cold launch the persistent OpenFreeMap style may still be
+      // loading/fetching; forcing addLayers()/fn() early made the first GPX
+      // fail while an immediate retry succeeded once the style had settled.
       pollFrame = requestAnimationFrame(poll);
     };
     pollFrame = requestAnimationFrame(poll);
