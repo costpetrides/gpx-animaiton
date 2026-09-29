@@ -86,7 +86,7 @@ export function createEmptyProjectDocument() {
         showFullRoute: true,
       },
       map: {
-        styleKey: 'outdoor',
+        styleKey: 'dark',
         terrainEnabled: true,
         terrain: {
           quality: 'balanced',
