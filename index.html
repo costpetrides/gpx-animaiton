@@ -37,7 +37,7 @@
           <button type="button" class="btn btn-ghost" id="btn-add-photos-header" disabled>
             Add photos
           </button>
-          <button type="button" class="btn btn-primary" id="btn-export-video" data-action="export-video" disabled>
+          <button type="button" class="btn btn-primary" id="btn-export-video" disabled>
             Export MP4
           </button>
         </div>
@@ -251,6 +251,73 @@
     <input type="file" id="gpx-input" class="gpx-file-input" accept=".gpx,application/gpx+xml,text/xml" />
     <input type="file" id="photo-input" class="gpx-file-input" accept="image/*" multiple />
 
+
+    <div id="export-settings-modal" class="export-modal hidden" role="dialog" aria-modal="true" aria-labelledby="export-settings-title">
+      <div class="export-modal-card">
+        <div class="export-modal-header">
+          <div>
+            <span class="panel-kicker">Video export</span>
+            <h2 id="export-settings-title">Export settings</h2>
+          </div>
+          <button type="button" class="export-modal-close" id="btn-close-export-settings" aria-label="Close">×</button>
+        </div>
+
+        <section class="export-setting-group">
+          <span class="export-setting-label">Aspect ratio</span>
+          <div class="export-option-grid export-option-grid--ratio">
+            <button type="button" class="export-option active" data-export-ratio="16:9">
+              <span class="ratio-icon ratio-icon--landscape"></span>
+              <strong>16:9</strong>
+              <small>Landscape</small>
+            </button>
+            <button type="button" class="export-option" data-export-ratio="1:1">
+              <span class="ratio-icon ratio-icon--square"></span>
+              <strong>1:1</strong>
+              <small>Square</small>
+            </button>
+            <button type="button" class="export-option" data-export-ratio="9:16">
+              <span class="ratio-icon ratio-icon--portrait"></span>
+              <strong>9:16</strong>
+              <small>Portrait</small>
+            </button>
+          </div>
+        </section>
+
+        <section class="export-setting-group">
+          <span class="export-setting-label">Quality</span>
+          <div class="export-option-grid export-option-grid--quality">
+            <button type="button" class="export-option" data-export-quality="low">720p</button>
+            <button type="button" class="export-option active" data-export-quality="medium">1080p</button>
+            <button type="button" class="export-option" data-export-quality="high">1440p</button>
+            <button type="button" class="export-option" data-export-quality="ultra">4K</button>
+          </div>
+        </section>
+
+        <section class="export-setting-group">
+          <span class="export-setting-label">Frame rate</span>
+          <div class="export-option-grid export-option-grid--fps">
+            <button type="button" class="export-option" data-export-fps="24">24 fps</button>
+            <button type="button" class="export-option active" data-export-fps="30">30 fps</button>
+            <button type="button" class="export-option" data-export-fps="60">60 fps</button>
+          </div>
+        </section>
+
+        <div class="export-summary">
+          <div>
+            <span>Output</span>
+            <strong id="export-resolution-summary">1920 × 1080</strong>
+          </div>
+          <div>
+            <span>Format</span>
+            <strong>MP4 · H.264</strong>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary export-generate-btn" id="btn-generate-export">
+          Export video
+        </button>
+      </div>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
   </body>
