@@ -999,7 +999,12 @@ function applyTrailReplaySuggestedDistance(parsed) {
   const suggestedStopIndex = getFollowBehindStopIndexForLevel(
     trailReplaySuggestedLevel,
   );
-  const cinematicStopIndex = Math.max(0, suggestedStopIndex - 2);
+
+  // Cinematic needs breathing room. Keep the TrailReplay route-aware
+  // suggestion, widen it by two stops, and never auto-start closer than
+  // Medium− (stop index 2). Closer framings remain available manually.
+  const widenedStopIndex = Math.max(0, suggestedStopIndex - 2);
+  const cinematicStopIndex = Math.min(2, widenedStopIndex);
   const level = getFollowBehindLevelForStopIndex(cinematicStopIndex);
 
   lastSuggestedRouteKey = routeKey;
