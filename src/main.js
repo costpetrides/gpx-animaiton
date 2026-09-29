@@ -535,7 +535,7 @@ animator = createAnimator(map, {
     renderProjectState();
     shell.setTimes(0, animator.getDuration?.() || 0);
     elevationChart?.setData(animator.getElevationProfile?.() || []);
-    filmStats?.classList.remove('hidden');
+    filmTelemetry?.classList.remove('hidden');
     elevationProfileWrap?.classList.remove('hidden');
   },
   onPlaybackDisarmed() {
@@ -596,7 +596,7 @@ animator = createAnimator(map, {
   onRouteCleared() {
     shell.hidePreparing();
     elevationChart?.setData([]);
-    filmStats?.classList.add('hidden');
+    filmTelemetry?.classList.add('hidden');
     elevationProfileWrap?.classList.add('hidden');
     setPlaybackControlsEnabled(false);
     updateExportEnabled();
