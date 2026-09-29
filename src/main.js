@@ -48,6 +48,7 @@ import { getCropPreviewMetrics } from './export/crop.js';
 import {
   getFollowBehindLevelForStopIndex,
   getFollowBehindStopIndexForLevel,
+  getSuggestedFollowBehindZoomLevel,
   normalizeTrailReplayCameraMode,
 } from './camera/trailReplayPlan.js';
 
@@ -59,6 +60,8 @@ let userScrubbing = false;
 let cinematicStyleApplied = false;
 let photoController = null;
 let lastPhotoListSignature = '';
+let lastSuggestedFollowLevel = null;
+let lastSuggestedRouteKey = null;
 
 function getProjectState() {
   return store.getState();
@@ -182,20 +185,25 @@ function updateExportCropPreview() {
   if (exportCropRatioLabel) exportCropRatioLabel.textContent = ratio;
 }
 
-const DEFAULT_VISIBLE_STATS = ['distance', 'pace', 'altitude'];
+const DEFAULT_VISIBLE_STATS = ['altitude', 'distance', 'speed'];
 const TIME_DEPENDENT_STATS = new Set(['time', 'speed', 'pace']);
 
 function getConfiguredVisibleStats() {
   const configured = getProjectState().document.project.overlays?.visibleStats;
-  return Array.isArray(configured) ? configured : DEFAULT_VISIBLE_STATS;
+  const source = Array.isArray(configured) ? configured : DEFAULT_VISIBLE_STATS;
+  const unique = [];
+  source.forEach((id) => {
+    if (!unique.includes(id)) unique.push(id);
+  });
+  return unique.slice(0, 3);
 }
 
 function getAvailableVisibleStats() {
   const routeDoc = getRouteDocument();
   const hasRecordedTime = Boolean(routeDoc?.stats?.hasTime);
-  return getConfiguredVisibleStats().filter(
-    (id) => !TIME_DEPENDENT_STATS.has(id) || hasRecordedTime,
-  );
+  return getConfiguredVisibleStats()
+    .filter((id) => !TIME_DEPENDENT_STATS.has(id) || hasRecordedTime)
+    .slice(0, 3);
 }
 
 function splitStatDisplay(value) {
@@ -221,12 +229,16 @@ function syncStatsUI() {
   const configured = new Set(getConfiguredVisibleStats());
   const available = new Set(getAvailableVisibleStats());
 
+  const configuredOrder = getConfiguredVisibleStats();
+  const atLimit = configuredOrder.length >= 3;
+
   statToggles.forEach((input) => {
     const id = input.dataset.statToggle;
     const unavailable = TIME_DEPENDENT_STATS.has(id) && hasRoute && !hasRecordedTime;
-    input.checked = configured.has(id);
-    input.disabled = !hasRoute || unavailable;
-    input.closest('.stats-choice')?.classList.toggle('is-unavailable', unavailable);
+    const checked = configured.has(id);
+    input.checked = checked;
+    input.disabled = !hasRoute || unavailable || (!checked && atLimit);
+    input.closest('.stats-choice')?.classList.toggle('is-unavailable', unavailable || (!checked && atLimit));
   });
 
   const visibleOrder = getAvailableVisibleStats();
@@ -252,13 +264,21 @@ function syncStatsUI() {
 
 statToggles.forEach((input) => {
   input.addEventListener('change', () => {
-    const next = new Set(getConfiguredVisibleStats());
     const id = input.dataset.statToggle;
-    if (input.checked) next.add(id);
-    else next.delete(id);
+    const next = getConfiguredVisibleStats().filter((value) => value !== id);
+
+    if (input.checked) {
+      if (next.length >= 3) {
+        input.checked = false;
+        syncStatsUI();
+        return;
+      }
+      next.push(id);
+    }
+
     store.dispatch({
       type: 'project/set-overlay-config',
-      payload: { visibleStats: [...next] },
+      payload: { visibleStats: next },
     });
     syncStatsUI();
   });
@@ -938,6 +958,50 @@ function enableCinematic3d() {
   animator.setMapViewMode?.('3d');
 }
 
+function applyTrailReplaySuggestedDistance(parsed) {
+  const points = Array.isArray(parsed?.points) ? parsed.points : [];
+  if (!points.length) return;
+
+  const routeDoc = getRouteDocument();
+  const totalDistanceMeters = routeDoc?.stats?.totalDistance ?? 0;
+  const videoDurationSeconds = animator.getDuration?.() || 30;
+  if (!(totalDistanceMeters > 0) || !(videoDurationSeconds > 0)) return;
+
+  const middlePoint = points[Math.floor(points.length / 2)];
+  const latitudeDeg = middlePoint?.lat;
+  if (!Number.isFinite(latitudeDeg)) return;
+
+  const routeKey = `${points.length}:${Math.round(totalDistanceMeters)}`;
+  const currentLevel = selectPlaybackConfig(getProjectState()).followBehindZoomLevel ?? 33;
+  const isNewRoute = lastSuggestedRouteKey !== routeKey;
+
+  // Exact TrailReplay ownership rule:
+  // new route -> suggest;
+  // same route -> only re-suggest while current value still equals last suggestion.
+  const canApply =
+    isNewRoute ||
+    lastSuggestedFollowLevel == null ||
+    currentLevel === lastSuggestedFollowLevel;
+
+  if (!canApply) return;
+
+  const level = getSuggestedFollowBehindZoomLevel({
+    totalDistanceMeters,
+    videoDurationSeconds,
+    latitudeDeg,
+  });
+
+  lastSuggestedRouteKey = routeKey;
+  lastSuggestedFollowLevel = level;
+
+  if (level === currentLevel) return;
+
+  store.dispatch({
+    type: 'project/set-follow-behind-zoom-level',
+    payload: { level },
+  });
+}
+
 function handleGPX(text, filename = '') {
   try {
     getProjectPhotos().forEach((photo) => {
@@ -959,10 +1023,7 @@ function handleGPX(text, filename = '') {
       payload: { route: parsed, sourceFile: filename },
     });
 
-    // TrailReplay import behavior: keep the user's/default camera distance.
-    // Do not auto-pick a new distance from route length on every GPX load.
-    // Our product default remains Cinematic, with TrailReplay's Medium (33)
-    // starting distance and 0.5 stability from the project defaults.
+    // Keep Cinematic as this product's default camera mode.
     const preset = 'cinematic';
     const rig = createDefaultCameraRig(preset);
     store.dispatch({
@@ -971,6 +1032,8 @@ function handleGPX(text, filename = '') {
     });
 
     animator.load(parsed, { fitOnLoad: true });
+    applyTrailReplaySuggestedDistance(parsed);
+    animator.refreshCamera?.();
     photoController?.syncMarkers?.();
     syncMap3dGestures(map, true);
     renderProjectState();
