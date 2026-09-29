@@ -568,7 +568,7 @@ select {
   overflow: hidden;
   transform-origin: 50% 78%;
   opacity: 0;
-  transform: scale(0.15);
+  transform: translateY(8px) scale(0.96);
 }
 .photo-moment.is-visible { opacity: 1; }
 .photo-moment.is-visible .photo-moment-frame {
@@ -608,10 +608,22 @@ select {
 .photo-moment-caption span { font-size: 10px; color: rgba(255,255,255,0.68); }
 
 @keyframes photo-moment-pop {
-  0% { opacity: 0; transform: scale(0.15); }
-  15% { opacity: 1; transform: scale(1); }
-  88% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(0.85); }
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  88% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0) scale(0.85);
+  }
 }
 @keyframes photo-moment-progress {
   from { width: 0%; }
