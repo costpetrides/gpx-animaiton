@@ -136,7 +136,7 @@ export function createVideoExporter(deps) {
           width,
           height,
           crop,
-          getVisibleStats?.() || ['distance', 'pace', 'altitude'],
+          getVisibleStats?.() || ['altitude', 'distance', 'speed'],
         );
         drawElevationProfile(compositeCtx, width, height, crop);
         if (photoMoment?.photo && photoMoment?.image) {
