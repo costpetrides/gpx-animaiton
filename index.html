@@ -34,6 +34,9 @@
         </div>
         <div class="header-actions">
           <label class="btn btn-ghost" for="gpx-input">Open GPX</label>
+          <button type="button" class="btn btn-ghost" id="btn-add-photos-header" disabled>
+            Add photos
+          </button>
           <button type="button" class="btn btn-primary" id="btn-export-video" data-action="export-video" disabled>
             Export MP4
           </button>
@@ -42,94 +45,138 @@
 
       <div class="app-body">
         <aside class="side-panel" id="side-panel">
-          <section class="side-section">
-            <h2>Trail</h2>
-            <dl class="trail-meta" id="trail-meta">
-              <div>
-                <dt>Name</dt>
-                <dd id="meta-name">—</dd>
-              </div>
-              <div>
-                <dt>Distance</dt>
-                <dd id="meta-length">—</dd>
-              </div>
-              <div>
-                <dt>Elevation gain</dt>
-                <dd id="meta-gain">—</dd>
-              </div>
-              <div>
-                <dt>Film length</dt>
-                <dd id="meta-duration">—</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section class="side-section">
-            <h2>Preview</h2>
-
-            <label class="field-label" for="map-style-select">Map style</label>
-            <select id="map-style-select">
-              <option value="outdoor" selected>Outdoor</option>
-              <option value="positron">Positron</option>
-              <option value="dark">Dark</option>
-            </select>
-            <p class="field-hint">OpenFreeMap basemap. Terrain and cinematic overlays stay unchanged.</p>
-
-            <label class="field-label" for="camera-mode">Camera mode</label>
-            <select id="camera-mode">
-              <option value="cinematic" selected>Cinematic</option>
-              <option value="follow-behind">Follow behind</option>
-              <option value="follow">Follow</option>
-              <option value="overview">Overview</option>
-            </select>
-            <p class="field-hint" id="camera-mode-hint">
-              Cinematic smooths the known route ahead and behind the marker, so fast switchbacks do not whip the frame.
-            </p>
-
-            <div id="follow-distance-group">
-              <label class="field-label" for="follow-distance">Camera distance</label>
-              <div class="slider-row">
-                <input id="follow-distance" type="range" min="0" max="7" step="1" value="3" />
-                <span class="mono" id="follow-distance-label">Medium</span>
-              </div>
-              <p class="field-hint">Far → very close changes zoom and pitch together.</p>
-            </div>
-
-            <div id="camera-stability-group">
-              <label class="field-label" for="camera-stability">Camera stability</label>
-              <div class="slider-row">
-                <input id="camera-stability" type="range" min="0" max="1" step="0.05" value="0.3" />
-                <span class="mono" id="camera-stability-label">Stable</span>
-              </div>
-              <div class="range-end-labels">
-                <span>Stable</span>
-                <span>Reactive</span>
-              </div>
-            </div>
-
-            <label class="field-label" for="speed-select">Speed</label>
-            <select id="speed-select">
-              <option value="0.5">0.5×</option>
-              <option value="1" selected>1×</option>
-              <option value="2">2×</option>
-              <option value="4">4×</option>
-              <option value="8">8×</option>
-            </select>
-          </section>
-
-          <section class="side-section" id="photos-section">
-            <div class="section-heading-row">
-              <h2>Photos</h2>
-              <span class="section-count" id="photos-count">0</span>
-            </div>
-            <button type="button" class="btn btn-secondary btn-block" id="btn-add-photos" disabled>
-              Add photos
+          <nav class="editor-tabs" aria-label="Editor tools">
+            <button type="button" class="editor-tab active" data-editor-tab="trail">
+              <span class="editor-tab-icon">◉</span>
+              <span>Trail</span>
             </button>
-            <p class="field-hint">GPS/time photos are placed automatically. Unmatched photos can be placed on the route.</p>
-            <div class="photo-list" id="photo-list"></div>
-          </section>
+            <button type="button" class="editor-tab" data-editor-tab="camera">
+              <span class="editor-tab-icon">⌁</span>
+              <span>Camera</span>
+            </button>
+            <button type="button" class="editor-tab" data-editor-tab="photos">
+              <span class="editor-tab-icon">▣</span>
+              <span>Photos</span>
+              <span class="editor-tab-count" id="photos-count">0</span>
+            </button>
+          </nav>
 
-          <p class="side-status" id="status-message">Drop a GPX to create a cinematic trail film</p>
+          <div class="editor-panel-wrap">
+            <section class="editor-panel active" data-editor-panel="trail">
+              <div class="panel-heading">
+                <div>
+                  <span class="panel-kicker">Project</span>
+                  <h2>Trail</h2>
+                </div>
+              </div>
+              <dl class="trail-meta compact" id="trail-meta">
+                <div>
+                  <dt>Name</dt>
+                  <dd id="meta-name">—</dd>
+                </div>
+                <div>
+                  <dt>Distance</dt>
+                  <dd id="meta-length">—</dd>
+                </div>
+                <div>
+                  <dt>Elevation gain</dt>
+                  <dd id="meta-gain">—</dd>
+                </div>
+                <div>
+                  <dt>Film length</dt>
+                  <dd id="meta-duration">—</dd>
+                </div>
+              </dl>
+
+              <div class="panel-divider"></div>
+
+              <label class="field-label" for="map-style-select">Map style</label>
+              <select id="map-style-select">
+                <option value="outdoor" selected>Outdoor</option>
+                <option value="positron">Positron</option>
+                <option value="dark">Dark</option>
+              </select>
+              <p class="field-hint">Choose the basemap. Terrain and film overlays stay intact.</p>
+
+              <label class="field-label" for="speed-select">Playback speed</label>
+              <select id="speed-select">
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1×</option>
+                <option value="2">2×</option>
+                <option value="4">4×</option>
+                <option value="8">8×</option>
+              </select>
+            </section>
+
+            <section class="editor-panel" data-editor-panel="camera">
+              <div class="panel-heading">
+                <div>
+                  <span class="panel-kicker">Movement</span>
+                  <h2>Camera</h2>
+                </div>
+              </div>
+
+              <label class="field-label" for="camera-mode">Camera mode</label>
+              <select id="camera-mode">
+                <option value="cinematic" selected>Cinematic</option>
+                <option value="follow-behind">Follow behind</option>
+                <option value="follow">Follow</option>
+                <option value="overview">Overview</option>
+              </select>
+              <p class="field-hint" id="camera-mode-hint">
+                Cinematic uses the known route ahead and behind the marker for smooth turns.
+              </p>
+
+              <div id="follow-distance-group" class="control-group">
+                <label class="field-label" for="follow-distance">Camera distance</label>
+                <div class="slider-row">
+                  <input id="follow-distance" type="range" min="0" max="7" step="1" value="3" />
+                  <span class="mono" id="follow-distance-label">Medium</span>
+                </div>
+                <div class="range-end-labels">
+                  <span>Far</span>
+                  <span>Very close</span>
+                </div>
+              </div>
+
+              <div id="camera-stability-group" class="control-group">
+                <label class="field-label" for="camera-stability">Camera stability</label>
+                <div class="slider-row">
+                  <input id="camera-stability" type="range" min="0" max="1" step="0.05" value="0.3" />
+                  <span class="mono" id="camera-stability-label">Stable</span>
+                </div>
+                <div class="range-end-labels">
+                  <span>Stable</span>
+                  <span>Reactive</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="editor-panel editor-panel-photos" data-editor-panel="photos">
+              <div class="panel-heading">
+                <div>
+                  <span class="panel-kicker">Journey moments</span>
+                  <h2>Photos</h2>
+                </div>
+                <button type="button" class="panel-add-btn" id="btn-add-photos" disabled>＋</button>
+              </div>
+
+              <div class="photo-dropzone" id="photo-dropzone">
+                <div class="photo-dropzone-icon">▣</div>
+                <strong>Drop photos here</strong>
+                <span>or click to browse</span>
+              </div>
+
+              <div class="photo-help">
+                Photos with GPS or capture time are placed automatically.
+                <strong>Drag any thumbnail onto the route</strong> to place or move it manually.
+              </div>
+
+              <div class="photo-list" id="photo-list"></div>
+            </section>
+          </div>
+
+          <div class="side-status" id="status-message">Drop a GPX to create a cinematic trail film</div>
         </aside>
 
         <main class="viewport" id="viewport">
