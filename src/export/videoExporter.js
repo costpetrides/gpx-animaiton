@@ -812,7 +812,7 @@ function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
   const labelPx = Math.max(10, 12 * scale);
   const valuePx = Math.max(20, 27 * scale);
   const unitPx = Math.max(10, 12 * scale);
-  const brandGap = Math.max(14 * scale, 18 * scale);
+  const brandGap = Math.max(20 * scale, 26 * scale);
   const statsTop = top + brandPx + brandGap;
   const centerLift = Math.max(8 * scale, 10 * scale);
 
