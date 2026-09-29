@@ -1292,7 +1292,7 @@ select {
 /* Strava-style top telemetry */
 .film-telemetry {
   position: absolute;
-  top: 42px;
+  top: 52px;
   left: 50%;
   z-index: 4;
   width: min(78%, 760px);
