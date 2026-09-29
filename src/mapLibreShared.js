@@ -227,8 +227,12 @@ export function applyMap3dMode(map, enabled, options = {}) {
 
     const nextBearing =
       Number.isFinite(bearing) ? bearing : (map.getBearing?.() ?? 0);
-    // Force a clear pitched view — fitBounds often leaves pitch at 0.
-    const nextPitch = Math.max(pitch, 50);
+    // Respect the authored camera pitch exactly. TrailReplay couples
+    // distance and tilt (Far 32° ... Very close 56°); terrain setup must not
+    // clamp that pose to an arbitrary minimum.
+    const nextPitch = Number.isFinite(pitch)
+      ? Math.max(0, Math.min(85, pitch))
+      : (map.getPitch?.() ?? 0);
 
     try {
       map.setPitch(nextPitch);
