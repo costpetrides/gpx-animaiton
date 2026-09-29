@@ -407,7 +407,7 @@ export function stopCameraAnimation(map) {
   map.stop();
 }
 
-export function getOverviewCameraOptions(map, bounds, { maxElevationM = null } = {}) {
+export function getOverviewCameraOptions(map, bounds, { maxElevationM = null, padding = 100 } = {}) {
   if (!map || !bounds) return null;
 
   const sw = bounds.getSouthWest();
@@ -420,7 +420,7 @@ export function getOverviewCameraOptions(map, bounds, { maxElevationM = null } =
   );
 
   const camera = map.cameraForBounds(expanded, {
-    padding: 100,
+    padding,
     maxZoom: 14,
   });
   if (!camera) return null;
@@ -466,9 +466,9 @@ export function fitOverview(map, bounds, options = {}) {
 export function flyOverview(
   map,
   bounds,
-  { maxElevationM = null, durationMs = 3000 } = {},
+  { maxElevationM = null, durationMs = 3000, padding = 100 } = {},
 ) {
-  const camera = getOverviewCameraOptions(map, bounds, { maxElevationM });
+  const camera = getOverviewCameraOptions(map, bounds, { maxElevationM, padding });
   if (!camera) return Promise.resolve();
 
   return new Promise((resolve) => {
