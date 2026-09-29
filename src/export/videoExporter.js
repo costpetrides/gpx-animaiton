@@ -362,10 +362,9 @@ async function exportWebmFallback({
   for (let frame = 0; frame < routeFrames; frame += 1) {
     if (signal.aborted) throw new Error('export_aborted');
 
-    const t = frame / quality.fps;
-    const pct = routeDurationSec > 0
-      ? (t / routeDurationSec) * 1000
-      : 0;
+    const routeProgress = routeFrames <= 1 ? 0 : frame / (routeFrames - 1);
+    const t = routeProgress * routeDurationSec;
+    const pct = routeProgress * 1000;
 
     if (animator.renderExportProgress) {
       animator.renderExportProgress(pct);
@@ -379,7 +378,7 @@ async function exportWebmFallback({
     await waitMs(Math.max(0, frameInterval - 8), signal);
     outputFrame += 1;
 
-    while (nextPhotoIndex < photos.length && photos[nextPhotoIndex].progress <= Math.min(1, t / Math.max(routeDurationSec, 0.001) + 1e-9)) {
+    while (nextPhotoIndex < photos.length && photos[nextPhotoIndex].progress <= routeProgress + 1e-9) {
       const photo = photos[nextPhotoIndex];
       const image = photoAssets.get(photo.id);
       nextPhotoIndex += 1;
