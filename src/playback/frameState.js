@@ -2,6 +2,7 @@ import {
   formatDistance,
   formatDuration,
   formatElevation,
+  formatPace,
   formatSpeed,
 } from '../gpx.js';
 
@@ -18,6 +19,7 @@ export function createFrameState({
   const timeline = progress * 1000;
   const progressPct = Math.round(progress * 100);
   const cadenceTick = Math.floor(playbackFrame.animTime * 15);
+  const recordedSpeedMps = route.recordedSpeedAtDistance?.(playbackFrame.animDistance) ?? null;
   const recordedElapsedSec =
     route.hasTime &&
     Number.isFinite(playbackFrame.sample?.point?.time) &&
@@ -44,6 +46,8 @@ export function createFrameState({
       distance: formatDistance(playbackFrame.animDistance),
       total: formatDistance(route.totalDistance),
       speed: formatSpeed(playbackFrame.currentSpeed),
+      recordedSpeed: recordedSpeedMps == null ? '—' : formatSpeed(recordedSpeedMps),
+      pace: recordedSpeedMps == null ? '—' : formatPace(recordedSpeedMps),
       elevation: formatElevation(playbackFrame.sample?.point?.ele),
       elevationGain: formatElevation(route.elevationGainAtDistance?.(playbackFrame.animDistance) ?? 0),
       recordedTime: formatDuration(recordedElapsedSec),
