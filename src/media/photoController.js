@@ -224,6 +224,29 @@ export function createPhotoController({
     hideOverlay();
   }
 
+  function placePhotoAt(photoId, lngLat, source = 'manual') {
+    const route = getRoute?.();
+    if (!route || !lngLat) return false;
+    const placement = projectCoordinateToRoute(route, lngLat.lat, lngLat.lng);
+    if (!placement) return false;
+
+    store.dispatch({
+      type: 'project/update-photo',
+      payload: {
+        id: photoId,
+        patch: {
+          lat: placement.lat,
+          lng: placement.lng,
+          routeDistanceM: placement.routeDistanceM,
+          progress: placement.progress,
+          placementSource: source,
+        },
+      },
+    });
+    syncMarkers();
+    return true;
+  }
+
   function setManualPlacement(photoId) {
     const photo = photos().find((item) => item.id === photoId);
     if (!photo) return;
@@ -241,27 +264,10 @@ export function createPhotoController({
 
   function placePendingAt(lngLat) {
     if (!manualPlacementId) return false;
-    const route = getRoute?.();
-    if (!route) return false;
-    const placement = projectCoordinateToRoute(route, lngLat.lat, lngLat.lng);
-    if (!placement) return false;
-
-    store.dispatch({
-      type: 'project/update-photo',
-      payload: {
-        id: manualPlacementId,
-        patch: {
-          lat: placement.lat,
-          lng: placement.lng,
-          routeDistanceM: placement.routeDistanceM,
-          progress: placement.progress,
-          placementSource: 'manual',
-        },
-      },
-    });
-    const placed = photos().find((item) => item.id === manualPlacementId);
+    const placedId = manualPlacementId;
+    if (!placePhotoAt(placedId, lngLat, 'manual')) return false;
+    const placed = photos().find((item) => item.id === placedId);
     cancelManualPlacement();
-    syncMarkers();
     shell?.setStatus?.(
       placed
         ? `Placed ${placed.originalFileName || 'photo'} on the route`
@@ -291,6 +297,7 @@ export function createPhotoController({
   return {
     syncMarkers,
     setManualPlacement,
+    placePhotoAt,
     cancelManualPlacement,
     onPlaybackProgress,
     resetPlaybackTriggers,
