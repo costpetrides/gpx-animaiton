@@ -229,11 +229,22 @@ function syncStatsUI() {
     input.closest('.stats-choice')?.classList.toggle('is-unavailable', unavailable);
   });
 
+  const visibleOrder = getAvailableVisibleStats();
   liveStatItems.forEach((item) => {
     item.classList.toggle('hidden', !available.has(item.dataset.liveStat));
   });
 
   if (filmStats) {
+    // Grid placement follows selection order. A newly enabled metric is
+    // appended to the next free slot in the fixed 3 × 2 layout.
+    visibleOrder.forEach((id) => {
+      const item = liveStatItems.find((candidate) => candidate.dataset.liveStat === id);
+      if (item) filmStats.appendChild(item);
+    });
+    liveStatItems
+      .filter((item) => !available.has(item.dataset.liveStat))
+      .forEach((item) => filmStats.appendChild(item));
+
     filmStats.classList.toggle('hidden', !hasRoute || available.size === 0);
     filmStats.style.gridTemplateColumns = 'repeat(3, minmax(0, 1fr))';
   }
