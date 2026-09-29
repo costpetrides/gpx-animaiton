@@ -12,6 +12,7 @@ import {
   stopCameraAnimation,
 } from './camera.js';
 import { syncMap3dGestures } from './mapLibreShared.js';
+import { getExportFrameFitPadding } from './export/crop.js';
 import {
   createPlaybackState,
   getPlaybackDuration,
@@ -82,6 +83,7 @@ export function createAnimator(map, ui, {
   let transitionGeneration = 0;
   let startCameraSeeded = false;
   let exportOutroState = null;
+  let exportFrameMetrics = null;
   const trailReplayMotion = createTrailReplayMotionState();
   const INTRO_DURATION_MS = 0;
   const OUTRO_DURATION_MS = 3000;
@@ -756,6 +758,9 @@ export function createAnimator(map, ui, {
     return flyOverview(map, bounds, {
       maxElevationM: getRouteMaxElevation(),
       durationMs,
+      padding: exportFrameMetrics
+        ? getExportFrameFitPadding(exportFrameMetrics)
+        : 100,
     });
   }
 
@@ -766,6 +771,9 @@ export function createAnimator(map, ui, {
 
     const target = getOverviewCameraOptions(map, bounds, {
       maxElevationM: getRouteMaxElevation(),
+      padding: exportFrameMetrics
+        ? getExportFrameFitPadding(exportFrameMetrics)
+        : 100,
     });
     if (!target) return false;
 
@@ -1210,5 +1218,8 @@ export function createAnimator(map, ui, {
     isPlaybackDegraded: () => playbackPreparer.isDegraded(),
     getRoute: () => (routeReadyForPlayback ? route : null),
     setMapViewMode,
+    setExportFrameMetrics(metrics) {
+      exportFrameMetrics = metrics || null;
+    },
   };
 }
