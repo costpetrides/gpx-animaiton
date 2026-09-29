@@ -90,6 +90,20 @@ const map = new maplibregl.Map({
 });
 collapseMapAttribution(map);
 
+// Cold-start barrier: a GPX selected immediately after app launch must wait
+// until MapLibre has completed its first load and the studio/kernel/3D setup
+// is ready. Without this, the first route can race startup initialization and
+// appear to fail while an immediate second upload succeeds.
+let resolveMapBootReady;
+let mapBootReadySettled = false;
+const mapBootReady = new Promise((resolve) => {
+  resolveMapBootReady = () => {
+    if (mapBootReadySettled) return;
+    mapBootReadySettled = true;
+    resolve();
+  };
+});
+
 const terrainStream = createTerrainStreamCoordinator(map);
 const navControl = new maplibregl.NavigationControl({ visualizePitch: true });
 map.addControl(navControl, 'top-right');
@@ -1097,9 +1111,16 @@ async function loadGpxFile(file) {
   if (!file) return;
   try {
     const text = await file.text();
+
+    if (!mapBootReadySettled) {
+      shell.showPreparing('Opening GPX', 'Finishing map startup…');
+      await mapBootReady;
+    }
+
     handleGPX(text, file.name || 'trail.gpx');
-  } catch {
-    shell.setStatus('Error: Failed to read GPX file');
+  } catch (error) {
+    shell.hidePreparing();
+    shell.setStatus(`Error: ${error?.message || 'Failed to read GPX file'}`);
   }
 }
 
@@ -1342,10 +1363,23 @@ map.on('load', () => {
   initKernel();
   enableCinematic3d();
   shell.hideLoading();
-  shell.setStatus('Drop a GPX to create a cinematic trail film');
-  clearProjectUI();
   photoController?.syncMarkers?.();
   map.resize();
+
+  // Do not wipe a route that may have been queued during cold start.
+  if (getRouteDocument()) {
+    renderProjectState();
+  } else {
+    shell.setStatus('Drop a GPX to create a cinematic trail film');
+    clearProjectUI();
+  }
+
+  // Resolve on the next frame so MapLibre has applied the initial resize and
+  // presentation before the queued GPX enters animator.load().
+  requestAnimationFrame(() => {
+    map.resize();
+    resolveMapBootReady?.();
+  });
 });
 
 map.once('idle', () => {
@@ -1380,7 +1414,10 @@ window.addEventListener('beforeunload', () => {
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.has('gpxDebug')) {
   window.__gpxStudio = {
-    loadGpxText: (text, filename = 'debug.gpx') => handleGPX(text, filename),
+    loadGpxText: async (text, filename = 'debug.gpx') => {
+      await mapBootReady;
+      return handleGPX(text, filename);
+    },
     getState: () => store.getState(),
     dispatch: (action) => store.dispatch(action),
     get animator() { return animator; },
