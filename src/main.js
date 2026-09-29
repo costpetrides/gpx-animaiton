@@ -183,6 +183,39 @@ function updateExportCropPreview() {
     height: `${metrics.frameHeight}px`,
   });
   if (exportCropRatioLabel) exportCropRatioLabel.textContent = ratio;
+
+  animator?.setExportFrameMetrics?.(metrics);
+
+  // Match TrailReplay's export-aware overlay positioning: preview UI is
+  // positioned inside the exact frame that will be encoded.
+  if (filmStats) {
+    filmStats.style.top = `${metrics.frameTop + Math.max(18, metrics.frameHeight * 0.04)}px`;
+    filmStats.style.left = `${metrics.frameLeft + metrics.frameWidth / 2}px`;
+    filmStats.style.width = `${Math.min(metrics.frameWidth * 0.89, 760)}px`;
+    filmStats.style.transform = 'translateX(-50%)';
+  }
+  if (elevationProfileWrap) {
+    const sideInset = metrics.frameWidth * 0.075;
+    elevationProfileWrap.style.left = `${metrics.frameLeft + sideInset}px`;
+    elevationProfileWrap.style.right = `${Math.max(0, width - (metrics.frameLeft + metrics.frameWidth - sideInset))}px`;
+    elevationProfileWrap.style.bottom = `${Math.max(12, height - (metrics.frameTop + metrics.frameHeight) + 12)}px`;
+  }
+}
+
+function clearExportFramePreview() {
+  exportCropPreview?.classList.add('hidden');
+  animator?.setExportFrameMetrics?.(null);
+  if (filmStats) {
+    filmStats.style.top = '';
+    filmStats.style.left = '';
+    filmStats.style.width = '';
+    filmStats.style.transform = '';
+  }
+  if (elevationProfileWrap) {
+    elevationProfileWrap.style.left = '';
+    elevationProfileWrap.style.right = '';
+    elevationProfileWrap.style.bottom = '';
+  }
 }
 
 const DEFAULT_VISIBLE_STATS = ['altitude', 'distance', 'speed'];
@@ -351,9 +384,9 @@ function openExportSettings() {
   exportSettingsModal?.classList.remove('hidden');
 }
 
-function closeExportSettings() {
+function closeExportSettings({ keepFrame = false } = {}) {
   exportSettingsModal?.classList.add('hidden');
-  exportCropPreview?.classList.add('hidden');
+  if (!keepFrame) clearExportFramePreview();
 }
 
 function setEditorTab(tabId) {
@@ -398,7 +431,9 @@ exportFpsButtons.forEach((button) => {
 
 btnGenerateExport?.addEventListener('click', () => {
   if (!getRouteDocument()) return;
-  closeExportSettings();
+  updateExportCropPreview();
+  exportCropPreview?.classList.remove('hidden');
+  closeExportSettings({ keepFrame: true });
   shell.setStatus('Exporting MP4…');
   kernel?.emit('export-video', { module: 'export' });
 });
@@ -1310,6 +1345,16 @@ window.addEventListener('resize', () => {
     updateExportCropPreview();
   }
 });
+window.addEventListener('gpx-export-state', (event) => {
+  const exporting = Boolean(event.detail?.exporting);
+  if (exporting) {
+    updateExportCropPreview();
+    exportCropPreview?.classList.remove('hidden');
+  } else {
+    clearExportFramePreview();
+  }
+});
+
 window.addEventListener('beforeunload', () => {
   tileWarmup.destroy();
   photoController?.destroy?.();
