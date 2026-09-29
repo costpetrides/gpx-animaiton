@@ -1020,11 +1020,22 @@ function applyTrailReplaySuggestedDistance(parsed) {
 
   if (!canApply) return;
 
-  const level = getSuggestedFollowBehindZoomLevel({
+  const trailReplaySuggestedLevel = getSuggestedFollowBehindZoomLevel({
     totalDistanceMeters,
     videoDurationSeconds,
     latitudeDeg,
   });
+
+  // Keep the route-aware TrailReplay suggestion, but never let the automatic
+  // starting camera be closer than Medium. Closer stops remain available
+  // manually after load.
+  const suggestedStopIndex = getFollowBehindStopIndexForLevel(
+    trailReplaySuggestedLevel,
+  );
+  const mediumStopIndex = getFollowBehindStopIndexForLevel(33);
+  const level = getFollowBehindLevelForStopIndex(
+    Math.min(suggestedStopIndex, mediumStopIndex),
+  );
 
   lastSuggestedRouteKey = routeKey;
   lastSuggestedFollowLevel = level;
