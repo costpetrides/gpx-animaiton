@@ -47,7 +47,6 @@ import { getExportResolution } from './export/videoExporter.js';
 import {
   getFollowBehindLevelForStopIndex,
   getFollowBehindStopIndexForLevel,
-  getSuggestedFollowBehindZoomLevel,
   normalizeTrailReplayCameraMode,
 } from './camera/trailReplayPlan.js';
 
@@ -758,7 +757,7 @@ function renderProjectState() {
   if (cameraStability) {
     const stability = Number.isFinite(playback.cameraStability)
       ? playback.cameraStability
-      : 0.3;
+      : 0.5;
     cameraStability.value = String(stability);
     if (cameraStabilityLabel) {
       cameraStabilityLabel.textContent =
@@ -820,17 +819,10 @@ function handleGPX(text, filename = '') {
       payload: { route: parsed, sourceFile: filename },
     });
 
-    const routeDoc = getRouteDocument();
-    const suggestedFollowLevel = getSuggestedFollowBehindZoomLevel({
-      totalDistanceMeters: routeDoc?.stats?.totalDistance ?? 0,
-      videoDurationSeconds: 30,
-      latitudeDeg: parsed.points?.[0]?.lat,
-    });
-    store.dispatch({
-      type: 'project/set-follow-behind-zoom-level',
-      payload: { level: suggestedFollowLevel },
-    });
-
+    // TrailReplay import behavior: keep the user's/default camera distance.
+    // Do not auto-pick a new distance from route length on every GPX load.
+    // Our product default remains Cinematic, with TrailReplay's Medium (33)
+    // starting distance and 0.5 stability from the project defaults.
     const preset = 'cinematic';
     const rig = createDefaultCameraRig(preset);
     store.dispatch({
