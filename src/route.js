@@ -114,6 +114,31 @@ export class RoutePath {
     return coords;
   }
 
+  recordedSpeedAtDistance(dist, windowPoints = 2) {
+    if (!this.hasTime || this.points.length < 2) return null;
+    const target = Math.max(0, Math.min(dist, this.totalDistance));
+
+    let low = 0;
+    let high = this.cumDist.length - 1;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (this.cumDist[mid] < target) low = mid + 1;
+      else high = mid;
+    }
+
+    const index = low;
+    const startIndex = Math.max(0, index - Math.max(1, windowPoints));
+    const endIndex = Math.min(this.points.length - 1, index + Math.max(1, windowPoints));
+    const start = this.points[startIndex];
+    const end = this.points[endIndex];
+    if (!Number.isFinite(start?.time) || !Number.isFinite(end?.time)) return null;
+
+    const elapsedSec = (end.time - start.time) / 1000;
+    const distanceM = this.cumDist[endIndex] - this.cumDist[startIndex];
+    if (elapsedSec <= 0 || distanceM < 0) return null;
+    return distanceM / elapsedSec;
+  }
+
   elevationGainAtDistance(dist) {
     if (!this.elevationGain?.length) return 0;
     const target = Math.max(0, Math.min(dist, this.totalDistance));
