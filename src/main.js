@@ -34,6 +34,12 @@ import { createTerrainStreamCoordinator } from './terrain/streamCoordinator.js';
 import { fingerprintRoutePoints } from './gpxFingerprint.js';
 import { normalizePrepareQuality } from './playback/preparePlans.js';
 import { createReplayTileWarmup } from './playback/tileWarmup.js';
+import {
+  createPhotoRecord,
+  readPhotoMetadata,
+  resolvePhotoPlacement,
+} from './media/photoPlacement.js';
+import { createPhotoController } from './media/photoController.js';
 import { createStudioKernel } from './studio/kernel.js';
 import { createDefaultCameraRig } from './camera/rig.js';
 import { createElevationChart } from './elevationChart.js';
@@ -50,6 +56,7 @@ let lastLoadedRouteFingerprint = null;
 let kernel = null;
 let userScrubbing = false;
 let cinematicStyleApplied = false;
+let photoController = null;
 
 function getProjectState() {
   return store.getState();
@@ -83,6 +90,10 @@ const navControl = new maplibregl.NavigationControl({ visualizePitch: true });
 map.addControl(navControl, 'top-right');
 
 const gpxInput = document.getElementById('gpx-input');
+const photoInput = document.getElementById('photo-input');
+const btnAddPhotos = document.getElementById('btn-add-photos');
+const photoList = document.getElementById('photo-list');
+const photosCount = document.getElementById('photos-count');
 const dropzone = document.getElementById('dropzone');
 const btnPlay = document.getElementById('btn-play');
 const btnReset = document.getElementById('btn-skip-start');
@@ -293,6 +304,7 @@ animator = createAnimator(map, {
     shell.setTimes(current, total);
     const progress = Number.isFinite(hud.progress) ? hud.progress / 100 : 0;
     elevationChart?.setProgress(progress);
+    photoController?.onPlaybackProgress?.(progress, Boolean(hud.playing));
 
     const setLive = (id, value) => {
       const el = document.getElementById(id);
@@ -332,6 +344,14 @@ animator = createAnimator(map, {
   tileWarmup,
 });
 
+photoController = createPhotoController({
+  map,
+  store,
+  getRoute: () => animator?.getRoute?.(),
+  getAnimator: () => animator,
+  shell,
+});
+
 if (elevationCanvas) {
   elevationChart = createElevationChart(elevationCanvas, {
     onScrub(progress) {
@@ -344,6 +364,133 @@ if (elevationCanvas) {
       userScrubbing = false;
     },
   });
+}
+
+function getProjectPhotos() {
+  return getProjectState().document.project.media?.photos || [];
+}
+
+function photoPlacementLabel(photo) {
+  if (photo.placementSource === 'pointIndex') return 'Route point';
+  if (photo.placementSource === 'routeDistance') return 'Route distance';
+  if (photo.placementSource === 'gps') return 'GPS';
+  if (photo.placementSource === 'timestamp') return 'Capture time';
+  if (photo.placementSource === 'manual') return 'Manual';
+  return 'Needs placement';
+}
+
+function renderPhotoList() {
+  const photos = getProjectPhotos();
+  if (photosCount) photosCount.textContent = String(photos.length);
+  if (!photoList) return;
+  photoList.replaceChildren();
+
+  photos.forEach((photo) => {
+    const row = document.createElement('div');
+    row.className = 'photo-row';
+
+    const thumb = document.createElement('img');
+    thumb.className = 'photo-thumb';
+    thumb.src = photo.url || '';
+    thumb.alt = '';
+    row.appendChild(thumb);
+
+    const main = document.createElement('div');
+    main.className = 'photo-row-main';
+
+    const name = document.createElement('div');
+    name.className = 'photo-row-name';
+    name.textContent = photo.originalFileName || 'Photo';
+    main.appendChild(name);
+
+    const meta = document.createElement('div');
+    meta.className = 'photo-row-meta';
+    meta.textContent = Number.isFinite(photo.progress)
+      ? `${photoPlacementLabel(photo)} · ${Math.round(photo.progress * 100)}%`
+      : photoPlacementLabel(photo);
+    main.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'photo-row-actions';
+
+    const preview = document.createElement('button');
+    preview.type = 'button';
+    preview.className = 'photo-action';
+    preview.textContent = 'Preview';
+    preview.addEventListener('click', () => photoController?.previewPhoto?.(photo.id));
+    actions.appendChild(preview);
+
+    const place = document.createElement('button');
+    place.type = 'button';
+    place.className = 'photo-action is-primary';
+    place.textContent = Number.isFinite(photo.progress) ? 'Move' : 'Place';
+    place.addEventListener('click', () => photoController?.setManualPlacement?.(photo.id));
+    actions.appendChild(place);
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'photo-action is-danger';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => {
+      if (photo.url?.startsWith?.('blob:')) URL.revokeObjectURL(photo.url);
+      store.dispatch({ type: 'project/remove-photo', payload: { id: photo.id } });
+      photoController?.syncMarkers?.();
+    });
+    actions.appendChild(remove);
+
+    main.appendChild(actions);
+    row.appendChild(main);
+    photoList.appendChild(row);
+  });
+}
+
+function makePhotoId() {
+  if (globalThis.crypto?.randomUUID) return `photo-${crypto.randomUUID()}`;
+  return `photo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function addPhotoFiles(files) {
+  const route = animator?.getRoute?.();
+  if (!route) {
+    shell.setStatus('Wait for the route preview to finish preparing before adding photos');
+    return;
+  }
+
+  const imageFiles = Array.from(files || []).filter((file) =>
+    file.type?.startsWith?.('image/')
+  );
+  if (!imageFiles.length) return;
+
+  shell.setStatus(`Reading ${imageFiles.length} photo${imageFiles.length === 1 ? '' : 's'}…`);
+  let unresolved = 0;
+
+  for (const file of imageFiles) {
+    const metadata = await readPhotoMetadata(file);
+    const placement = resolvePhotoPlacement(route, metadata);
+    const url = URL.createObjectURL(file);
+    const photo = createPhotoRecord({
+      id: makePhotoId(),
+      file,
+      url,
+      metadata,
+      placement,
+    });
+    if (!placement) unresolved += 1;
+    store.dispatch({ type: 'project/add-photo', payload: { photo } });
+  }
+
+  photoController?.syncMarkers?.();
+  renderPhotoList();
+
+  if (unresolved > 0) {
+    shell.setStatus(
+      `${imageFiles.length} photo${imageFiles.length === 1 ? '' : 's'} added · ${unresolved} need manual placement`,
+    );
+  } else {
+    shell.setStatus(
+      `${imageFiles.length} photo${imageFiles.length === 1 ? '' : 's'} placed on the route`,
+    );
+  }
 }
 
 function setPlaybackControlsEnabled(enabled) {
@@ -379,6 +526,8 @@ function renderProjectState() {
   const routeDoc = getRouteDocument();
   const playback = selectPlaybackConfig(getProjectState());
   const hasRoute = Boolean(routeDoc);
+  if (btnAddPhotos) btnAddPhotos.disabled = !hasRoute;
+  renderPhotoList();
 
   if (hasRoute) {
     shell.hideEmptyState();
@@ -542,6 +691,16 @@ gpxInput.addEventListener('change', () => {
   if (file) loadGpxFile(file);
 });
 
+btnAddPhotos?.addEventListener('click', () => {
+  if (!getRouteDocument()) return;
+  photoInput.value = '';
+  photoInput.click();
+});
+
+photoInput?.addEventListener('change', () => {
+  void addPhotoFiles(photoInput.files);
+});
+
 btnPlay.addEventListener('click', () => {
   if (animator.isPlaying()) animator.pause();
   else animator.play();
@@ -686,6 +845,7 @@ map.on('load', () => {
   shell.hideLoading();
   shell.setStatus('Drop a GPX to create a cinematic trail film');
   clearProjectUI();
+  photoController?.syncMarkers?.();
   map.resize();
 });
 
@@ -695,7 +855,13 @@ map.once('idle', () => {
 
 window.setTimeout(() => shell.hideLoading(), 4000);
 window.addEventListener('resize', () => map.resize());
-window.addEventListener('beforeunload', () => tileWarmup.destroy());
+window.addEventListener('beforeunload', () => {
+  tileWarmup.destroy();
+  photoController?.destroy?.();
+  getProjectPhotos().forEach((photo) => {
+    if (photo.url?.startsWith?.('blob:')) URL.revokeObjectURL(photo.url);
+  });
+});
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.has('gpxDebug')) {
