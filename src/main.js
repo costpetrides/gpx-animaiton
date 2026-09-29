@@ -1077,9 +1077,11 @@ function handleGPX(text, filename = '') {
       payload: { preset, rig, shot: null },
     });
 
-    animator.load(parsed, { fitOnLoad: true });
+    // Resolve the automatic camera distance before animator.load().
+    // The first-load prepare pipeline owns the initial camera application;
+    // refreshing immediately after load races MapLibre style readiness.
     applyTrailReplaySuggestedDistance(parsed);
-    animator.refreshCamera?.();
+    animator.load(parsed, { fitOnLoad: true });
     photoController?.syncMarkers?.();
     syncMap3dGestures(map, true);
     renderProjectState();
