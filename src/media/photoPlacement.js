@@ -36,7 +36,10 @@ export async function readPhotoMetadata(file) {
       normalizeDate(meta?.CreateDate) ??
       normalizeDate(meta?.MediaCreateDate) ??
       normalizeDate(meta?.DateTimeDigitized) ??
-      normalizeDate(meta?.ModifyDate);
+      normalizeDate(meta?.ModifyDate) ??
+      (Number.isFinite(file?.lastModified) && file.lastModified > 0
+        ? new Date(file.lastModified)
+        : undefined);
 
     return { latitude, longitude, timestamp };
   } catch {
