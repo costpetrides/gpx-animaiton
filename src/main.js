@@ -92,8 +92,13 @@ map.addControl(navControl, 'top-right');
 const gpxInput = document.getElementById('gpx-input');
 const photoInput = document.getElementById('photo-input');
 const btnAddPhotos = document.getElementById('btn-add-photos');
+const btnAddPhotosHeader = document.getElementById('btn-add-photos-header');
+const photoDropzone = document.getElementById('photo-dropzone');
 const photoList = document.getElementById('photo-list');
 const photosCount = document.getElementById('photos-count');
+const editorTabs = [...document.querySelectorAll('[data-editor-tab]')];
+const editorPanels = [...document.querySelectorAll('[data-editor-panel]')];
+const viewportCanvas = document.getElementById('viewport-canvas');
 const dropzone = document.getElementById('dropzone');
 const btnPlay = document.getElementById('btn-play');
 const btnReset = document.getElementById('btn-skip-start');
@@ -115,6 +120,19 @@ const elevationCanvas = document.getElementById('elevation-profile');
 const timeline = document.getElementById('timeline');
 const iconPlay = btnPlay.querySelector('.icon-play');
 const iconPause = btnPlay.querySelector('.icon-pause');
+
+function setEditorTab(tabId) {
+  editorTabs.forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.editorTab === tabId);
+  });
+  editorPanels.forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.editorPanel === tabId);
+  });
+}
+
+editorTabs.forEach((tab) => {
+  tab.addEventListener('click', () => setEditorTab(tab.dataset.editorTab));
+});
 
 function openGpxPicker() {
   gpxInput.value = '';
@@ -387,7 +405,24 @@ function renderPhotoList() {
 
   photos.forEach((photo) => {
     const row = document.createElement('div');
-    row.className = 'photo-row';
+    const placed = Number.isFinite(photo.progress);
+    row.className = `photo-row${placed ? '' : ' is-unplaced'}`;
+    row.draggable = true;
+    row.dataset.photoId = photo.id;
+    row.title = placed
+      ? 'Drag onto the map to move this photo'
+      : 'Drag onto the map to place this photo';
+    row.addEventListener('dragstart', (event) => {
+      event.dataTransfer?.setData('application/x-gpx-photo-id', photo.id);
+      event.dataTransfer?.setData('text/plain', photo.id);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      row.classList.add('is-dragging');
+      viewportCanvas?.classList.add('photo-drop-active');
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('is-dragging');
+      viewportCanvas?.classList.remove('photo-drop-active');
+    });
 
     const thumb = document.createElement('img');
     thumb.className = 'photo-thumb';
@@ -406,8 +441,8 @@ function renderPhotoList() {
     const meta = document.createElement('div');
     meta.className = 'photo-row-meta';
     meta.textContent = Number.isFinite(photo.progress)
-      ? `${photoPlacementLabel(photo)} · ${Math.round(photo.progress * 100)}%`
-      : photoPlacementLabel(photo);
+      ? `${photoPlacementLabel(photo)} · ${Math.round(photo.progress * 100)}% of route`
+      : 'Unplaced · drag onto route';
     main.appendChild(meta);
 
     const actions = document.createElement('div');
@@ -527,6 +562,8 @@ function renderProjectState() {
   const playback = selectPlaybackConfig(getProjectState());
   const hasRoute = Boolean(routeDoc);
   if (btnAddPhotos) btnAddPhotos.disabled = !hasRoute;
+  if (btnAddPhotosHeader) btnAddPhotosHeader.disabled = !hasRoute;
+  photoDropzone?.classList.toggle('is-disabled', !hasRoute);
   renderPhotoList();
 
   if (hasRoute) {
@@ -700,10 +737,34 @@ gpxInput.addEventListener('change', () => {
   if (file) loadGpxFile(file);
 });
 
-btnAddPhotos?.addEventListener('click', () => {
+function openPhotoPicker() {
   if (!getRouteDocument()) return;
   photoInput.value = '';
   photoInput.click();
+}
+
+btnAddPhotos?.addEventListener('click', openPhotoPicker);
+btnAddPhotosHeader?.addEventListener('click', () => {
+  setEditorTab('photos');
+  openPhotoPicker();
+});
+photoDropzone?.addEventListener('click', openPhotoPicker);
+
+photoDropzone?.addEventListener('dragover', (event) => {
+  if (!getRouteDocument()) return;
+  event.preventDefault();
+  photoDropzone.classList.add('dragover');
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+});
+photoDropzone?.addEventListener('dragleave', () => {
+  photoDropzone.classList.remove('dragover');
+});
+photoDropzone?.addEventListener('drop', (event) => {
+  event.preventDefault();
+  photoDropzone.classList.remove('dragover');
+  if (!getRouteDocument()) return;
+  const files = [...(event.dataTransfer?.files || [])];
+  void addPhotoFiles(files);
 });
 
 photoInput?.addEventListener('change', () => {
@@ -826,6 +887,49 @@ followDistance?.addEventListener('input', () => {
   animator.refreshCamera?.();
 });
 
+viewportCanvas?.addEventListener('dragover', (event) => {
+  const photoId =
+    event.dataTransfer?.getData('application/x-gpx-photo-id') ||
+    event.dataTransfer?.getData('text/plain');
+  if (!photoId || !getProjectPhotos().some((photo) => photo.id === photoId)) return;
+  event.preventDefault();
+  viewportCanvas.classList.add('photo-drop-active');
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+});
+
+viewportCanvas?.addEventListener('dragleave', (event) => {
+  if (!viewportCanvas.contains(event.relatedTarget)) {
+    viewportCanvas.classList.remove('photo-drop-active');
+  }
+});
+
+viewportCanvas?.addEventListener('drop', (event) => {
+  const photoId =
+    event.dataTransfer?.getData('application/x-gpx-photo-id') ||
+    event.dataTransfer?.getData('text/plain');
+  if (!photoId || !getProjectPhotos().some((photo) => photo.id === photoId)) return;
+
+  event.preventDefault();
+  viewportCanvas.classList.remove('photo-drop-active');
+
+  const canvas = map.getCanvas();
+  const rect = canvas.getBoundingClientRect();
+  const point = [
+    event.clientX - rect.left,
+    event.clientY - rect.top,
+  ];
+  const lngLat = map.unproject(point);
+  const placed = photoController?.placePhotoAt?.(photoId, lngLat, 'manual');
+  if (placed) {
+    const photo = getProjectPhotos().find((item) => item.id === photoId);
+    shell.setStatus(
+      `Placed ${photo?.originalFileName || 'photo'} on the route`,
+    );
+    setEditorTab('photos');
+    renderPhotoList();
+  }
+});
+
 function bindDropTarget(el) {
   if (!el) return;
   el.addEventListener('dragover', (e) => {
@@ -834,13 +938,28 @@ function bindDropTarget(el) {
   });
   el.addEventListener('dragleave', () => dropzone?.classList.remove('dragover'));
   el.addEventListener('drop', (e) => {
+    const photoId =
+      e.dataTransfer?.getData('application/x-gpx-photo-id') ||
+      e.dataTransfer?.getData('text/plain');
+    if (photoId && getProjectPhotos().some((photo) => photo.id === photoId)) return;
+
     e.preventDefault();
     dropzone?.classList.remove('dragover');
-    const file = [...(e.dataTransfer?.files || [])].find((f) =>
+    const files = [...(e.dataTransfer?.files || [])];
+    const file = files.find((f) =>
       /\.gpx$/i.test(f.name) || f.type.includes('gpx') || f.type.includes('xml'),
     );
-    if (file) loadGpxFile(file);
-    else shell.setStatus('Please drop a .gpx file');
+    if (file) {
+      loadGpxFile(file);
+      return;
+    }
+    const imageFiles = files.filter((f) => f.type?.startsWith?.('image/'));
+    if (imageFiles.length && getRouteDocument()) {
+      setEditorTab('photos');
+      void addPhotoFiles(imageFiles);
+      return;
+    }
+    shell.setStatus(getRouteDocument() ? 'Drop photos in Photos, or a GPX to replace the trail' : 'Please drop a .gpx file');
   });
 }
 bindDropTarget(document.getElementById('viewport-canvas'));
