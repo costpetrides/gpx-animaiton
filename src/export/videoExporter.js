@@ -73,7 +73,7 @@ function resolveExportPreset(options = {}) {
 }
 
 export function createVideoExporter(deps) {
-  const { map, animator, getDuration, getPhotos, onProgress, onStatus } = deps;
+  const { map, animator, getDuration, getPhotos, getVisibleStats, onProgress, onStatus } = deps;
   let abortController = null;
 
   function abort() {
@@ -131,7 +131,13 @@ export function createVideoExporter(deps) {
           width,
           height,
         );
-        drawFilmStats(compositeCtx, width, height, crop);
+        drawFilmStats(
+          compositeCtx,
+          width,
+          height,
+          crop,
+          getVisibleStats?.() || ['distance', 'gain', 'altitude', 'time'],
+        );
         drawElevationProfile(compositeCtx, width, height, crop);
         if (photoMoment?.photo && photoMoment?.image) {
           drawPhotoMoment(
@@ -519,31 +525,66 @@ function drawPhotoMoment(ctx, width, height, photo, image, elapsedMs, durationMs
   const style = photoMomentStyle(elapsedMs, durationMs);
   if (style.opacity <= 0 || !image?.naturalWidth || !image?.naturalHeight) return;
 
-  const maxW = width * 0.72;
-  const maxH = height * 0.72;
+  const portraitOutput = height > width;
   const imageAspect = image.naturalWidth / image.naturalHeight;
-  const boxAspect = maxW / maxH;
-  let drawW = maxW;
-  let drawH = maxH;
-  if (imageAspect > boxAspect) drawH = maxW / imageAspect;
-  else drawW = maxH * imageAspect;
 
-  drawW *= style.scale;
-  drawH *= style.scale;
-  const x = (width - drawW) / 2;
-  const y = (height - drawH) / 2;
+  let x;
+  let y;
+  let drawW;
+  let drawH;
+
+  if (portraitOutput) {
+    // Portrait exports treat a photo as the moment itself: full-frame,
+    // centered, aspect-preserving, no floating card. Use cover semantics so
+    // there are no map slivers or black side bars in a 9:16 reel.
+    const frameAspect = width / height;
+    if (imageAspect > frameAspect) {
+      drawH = height;
+      drawW = height * imageAspect;
+    } else {
+      drawW = width;
+      drawH = width / imageAspect;
+    }
+    drawW *= style.scale;
+    drawH *= style.scale;
+    x = (width - drawW) / 2;
+    y = (height - drawH) / 2;
+  } else {
+    const maxW = width * 0.72;
+    const maxH = height * 0.72;
+    const boxAspect = maxW / maxH;
+    drawW = maxW;
+    drawH = maxH;
+    if (imageAspect > boxAspect) drawH = maxW / imageAspect;
+    else drawW = maxH * imageAspect;
+    drawW *= style.scale;
+    drawH *= style.scale;
+    x = (width - drawW) / 2;
+    y = (height - drawH) / 2;
+  }
 
   ctx.save();
   ctx.globalAlpha = style.opacity;
-  roundRect(ctx, x, y, drawW, drawH, Math.max(12, width * 0.009));
-  ctx.clip();
+
+  if (portraitOutput) {
+    ctx.beginPath();
+    ctx.rect(0, 0, width, height);
+    ctx.clip();
+  } else {
+    roundRect(ctx, x, y, drawW, drawH, Math.max(12, width * 0.009));
+    ctx.clip();
+  }
+
   ctx.drawImage(image, x, y, drawW, drawH);
 
   const progress = Math.max(0, Math.min(1, elapsedMs / Math.max(1, durationMs)));
+  const progressY = portraitOutput ? 0 : y;
+  const progressX = portraitOutput ? 0 : x;
+  const progressW = portraitOutput ? width : drawW;
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
-  ctx.fillRect(x, y, drawW, Math.max(3, height * 0.003));
+  ctx.fillRect(progressX, progressY, progressW, Math.max(3, height * 0.003));
   ctx.fillStyle = '#0f9ad1';
-  ctx.fillRect(x, y, drawW * progress, Math.max(3, height * 0.003));
+  ctx.fillRect(progressX, progressY, progressW * progress, Math.max(3, height * 0.003));
   ctx.restore();
 }
 
@@ -725,19 +766,25 @@ async function captureRealtimePhase({
   drawCompositeFrame();
 }
 
-function drawFilmStats(ctx, width, height, crop = null) {
-  const values = [
-    ['DISTANCE', document.getElementById('live-distance')?.textContent || '—'],
-    ['GAIN', document.getElementById('live-gain')?.textContent || '—'],
-    ['ALTITUDE', document.getElementById('live-elevation')?.textContent || '—'],
-    ['TIME', document.getElementById('live-time')?.textContent || '00:00'],
-  ];
+function drawFilmStats(ctx, width, height, crop = null, visibleStats = []) {
+  const valueById = {
+    distance: ['DISTANCE', document.getElementById('live-distance')?.textContent || '—'],
+    gain: ['GAIN', document.getElementById('live-gain')?.textContent || '—'],
+    altitude: ['ALTITUDE', document.getElementById('live-elevation')?.textContent || '—'],
+    time: ['TIME', document.getElementById('live-time')?.textContent || '00:00'],
+    speed: ['SPEED', document.getElementById('live-speed')?.textContent || '—'],
+    pace: ['PACE', document.getElementById('live-pace')?.textContent || '—'],
+  };
+  const values = visibleStats.map((id) => valueById[id]).filter(Boolean);
+  if (values.length === 0) return;
 
   // TrailReplay scales overlays from the actual export crop, not from the
   // whole desktop viewport. This keeps portrait/square stats readable.
   const scale = crop?.scaleToRecording || 1;
-  const boxW = 220 * scale;
-  const boxH = 92 * scale;
+  const columns = width <= height ? Math.min(2, values.length) : Math.min(3, values.length);
+  const rows = Math.ceil(values.length / Math.max(1, columns));
+  const boxW = Math.max(132, columns * 110) * scale;
+  const boxH = Math.max(52, rows * 46) * scale;
   const margin = 18 * scale;
   const narrow = width <= height;
   const x = narrow ? (width - boxW) / 2 : margin;
@@ -748,12 +795,12 @@ function drawFilmStats(ctx, width, height, crop = null) {
   roundRect(ctx, x, y, boxW, boxH, 12 * scale);
   ctx.fill();
 
-  const colW = boxW / 2;
-  const rowH = boxH / 2;
+  const colW = boxW / Math.max(1, columns);
+  const rowH = boxH / Math.max(1, rows);
 
   values.forEach(([label, value], index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
+    const col = index % columns;
+    const row = Math.floor(index / columns);
     const tx = x + 12 * scale + col * colW;
     const ty = y + 21 * scale + row * rowH;
 
