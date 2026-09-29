@@ -12,7 +12,6 @@ import {
   stopCameraAnimation,
 } from './camera.js';
 import { syncMap3dGestures } from './mapLibreShared.js';
-import { getExportFrameFitPadding } from './export/crop.js';
 import {
   createPlaybackState,
   getPlaybackDuration,
@@ -256,29 +255,6 @@ export function createAnimator(map, ui, {
     return preset !== 'manual';
   }
 
-  function applyExportFrameZoomCompensation(frame) {
-    if (!frame || !exportFrameMetrics) return frame;
-
-    const frameWidth = exportFrameMetrics.frameWidth;
-    const containerWidth = exportFrameMetrics.frameWidth + exportFrameMetrics.left + exportFrameMetrics.right;
-    if (!(frameWidth > 0) || !(containerWidth > 0) || frameWidth >= containerWidth - 1) {
-      return frame;
-    }
-
-    const widthRatio = containerWidth / frameWidth;
-    const zoomOut = Math.log2(widthRatio);
-    if (!(zoomOut > 0)) return frame;
-
-    return {
-      ...frame,
-      shot: frame.shot
-        ? {
-            ...frame.shot,
-            zoom: Math.max(8, (frame.shot.zoom ?? 14) - zoomOut),
-          }
-        : frame.shot,
-    };
-  }
 
   function resolveCameraFrameForView(frameState, { continuous = true } = {}) {
     const cameraFrame = resolveCameraFrame(frameState, cameraState);
@@ -331,7 +307,7 @@ export function createAnimator(map, ui, {
             frame.terrainGuard.bearingGuard.enabled = false;
           }
         }
-        return applyExportFrameZoomCompensation(frame);
+        return frame;
       }
     }
 
@@ -347,9 +323,9 @@ export function createAnimator(map, ui, {
         const smooth = doc.rig.smoothing.bearing ?? 0.6;
         frame.terrainGuard.bearingGuard.maxDeltaDegPerUpdate = 0.6 + (1 - smooth) * 5;
       }
-      return applyExportFrameZoomCompensation(frame);
+      return frame;
     }
-    return applyExportFrameZoomCompensation(applyViewToCameraFrame(cameraFrame));
+    return applyViewToCameraFrame(cameraFrame);
   }
 
   function beginTerrainBarrier(elevationHint) {
@@ -782,9 +758,7 @@ export function createAnimator(map, ui, {
     return flyOverview(map, bounds, {
       maxElevationM: getRouteMaxElevation(),
       durationMs,
-      padding: exportFrameMetrics
-        ? getExportFrameFitPadding(exportFrameMetrics)
-        : 100,
+      padding: 100,
     });
   }
 
@@ -795,9 +769,7 @@ export function createAnimator(map, ui, {
 
     const target = getOverviewCameraOptions(map, bounds, {
       maxElevationM: getRouteMaxElevation(),
-      padding: exportFrameMetrics
-        ? getExportFrameFitPadding(exportFrameMetrics)
-        : 100,
+      padding: 100,
     });
     if (!target) return false;
 
@@ -1243,19 +1215,9 @@ export function createAnimator(map, ui, {
     getRoute: () => (routeReadyForPlayback ? route : null),
     setMapViewMode,
     setExportFrameMetrics(metrics) {
+      // Export-frame geometry is crop metadata only. Changing aspect ratio
+      // must never alter zoom, pitch, bearing, center, or smoothing state.
       exportFrameMetrics = metrics || null;
-      if (route) {
-        const frameState = getCurrentFrameState();
-        if (frameState && normalizeTrailReplayCameraMode(getCameraMode?.()) !== 'overview') {
-          resetPlaybackCameraGuards();
-          applyCameraFrame(
-            map,
-            resolveCameraFrameForView(frameState, { continuous: false }),
-            { continuous: false },
-          );
-          refreshProgressLayers(frameState, true);
-        }
-      }
     },
   };
 }
