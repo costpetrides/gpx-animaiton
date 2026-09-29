@@ -1335,15 +1335,17 @@ select {
 }
 
 .film-stats span {
+  margin-top: 6px;
   color: rgba(255,255,255,0.90);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.055em;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .film-stats strong {
-  margin-top: 2px;
+  margin-top: 0;
   color: #fff;
   font-family: var(--font);
   font-size: clamp(24px, 2.3vw, 42px);
@@ -1353,6 +1355,7 @@ select {
 }
 
 .film-stats small {
+  margin-top: 3px;
   min-height: 14px;
   color: rgba(255,255,255,0.94);
   font-family: var(--font);
