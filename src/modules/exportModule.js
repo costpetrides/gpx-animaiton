@@ -53,6 +53,9 @@ export function createExportModule(ctx) {
           .replace(/\s+/g, '-')
           .slice(0, 80) || 'trail-animation';
         exporting = true;
+        window.dispatchEvent(new CustomEvent('gpx-export-state', {
+          detail: { exporting: true },
+        }));
         getExporter()
           .exportVideo({
             quality: normalizeExportQuality(config?.quality),
@@ -72,12 +75,18 @@ export function createExportModule(ctx) {
           })
           .finally(() => {
             exporting = false;
+            window.dispatchEvent(new CustomEvent('gpx-export-state', {
+              detail: { exporting: false },
+            }));
             ctx.renderProjectState?.();
           });
       }
       if (intent === 'abort-export') {
         getExporter().abort();
         exporting = false;
+        window.dispatchEvent(new CustomEvent('gpx-export-state', {
+          detail: { exporting: false },
+        }));
       }
     },
   };
