@@ -93,6 +93,9 @@ export function createEmptyProjectDocument() {
           exaggeration: 1.5,
         },
       },
+      media: {
+        photos: [],
+      },
       layers: {
         route: true,
         elevation: true,
@@ -193,6 +196,11 @@ export function migrateProjectDocument(document) {
         rig: project.camera?.rig || createDefaultCameraRig(normalizeCameraPreset(project.camera?.preset)),
       },
       track: { ...empty.project.track, ...project.track },
+      media: {
+        ...empty.project.media,
+        ...project.media,
+        photos: Array.isArray(project.media?.photos) ? project.media.photos : [],
+      },
       map: {
         ...empty.project.map,
         ...project.map,
