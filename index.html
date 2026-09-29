@@ -106,6 +106,23 @@
                 <option value="4">4×</option>
                 <option value="8">8×</option>
               </select>
+
+              <div class="panel-divider"></div>
+
+              <div class="stats-config-heading">
+                <div>
+                  <span class="field-label stats-config-title">Stats overlay</span>
+                  <p class="field-hint">Choose what appears in the film and export.</p>
+                </div>
+              </div>
+              <div class="stats-picker" id="stats-picker">
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="distance" checked /><span>Distance</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="gain" checked /><span>Gain</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="altitude" checked /><span>Altitude</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="time" checked /><span>Time</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="speed" /><span>Speed</span></label>
+                <label class="stats-choice"><input type="checkbox" data-stat-toggle="pace" /><span>Pace</span></label>
+              </div>
             </section>
 
             <section class="editor-panel" data-editor-panel="camera">
@@ -208,10 +225,12 @@
             </div>
 
             <div class="film-stats hidden" id="film-stats" aria-live="off">
-              <div><span>Distance</span><strong id="live-distance">—</strong></div>
-              <div><span>Gain</span><strong id="live-gain">—</strong></div>
-              <div><span>Altitude</span><strong id="live-elevation">—</strong></div>
-              <div><span>GPX time</span><strong id="live-time">00:00</strong></div>
+              <div data-live-stat="distance"><span>Distance</span><strong id="live-distance">—</strong></div>
+              <div data-live-stat="gain"><span>Gain</span><strong id="live-gain">—</strong></div>
+              <div data-live-stat="altitude"><span>Altitude</span><strong id="live-elevation">—</strong></div>
+              <div data-live-stat="time"><span>Time</span><strong id="live-time">00:00</strong></div>
+              <div data-live-stat="speed"><span>Speed</span><strong id="live-speed">—</strong></div>
+              <div data-live-stat="pace"><span>Pace</span><strong id="live-pace">—</strong></div>
             </div>
 
             <div class="elevation-profile-wrap hidden" id="elevation-profile-wrap">
