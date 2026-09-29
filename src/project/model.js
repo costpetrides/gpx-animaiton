@@ -114,7 +114,7 @@ export function createEmptyProjectDocument() {
         speed: 1,
         cameraMode: 'cinematic',
         // TrailReplay semantics: 0 = stable/cinematic, 1 = reactive.
-        cameraStability: 0.3,
+        cameraStability: 0.5,
         followBehindZoomLevel: 33,
         // Balanced preparation uses opening warmup + predictive offscreen warming.
         prepareQuality: 'balanced',
