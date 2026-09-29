@@ -22,8 +22,8 @@ const MARKER_PALETTE = {
   },
   actor: {
     glow: '#0f9ad1',
-    core: '#ffffff',
-    coreStroke: '#0369a1',
+    core: '#0f9ad1',
+    coreStroke: '#075985',
   },
 };
 
@@ -255,10 +255,10 @@ export function createMapPlaybackRenderer(map) {
         type: 'circle',
         source: 'actor',
         paint: {
-          'circle-radius': 30,
+          'circle-radius': 14,
           'circle-color': palette.glow,
-          'circle-opacity': 0.5,
-          'circle-blur': 0.65,
+          'circle-opacity': 0.16,
+          'circle-blur': 0.55,
         },
       });
     }
@@ -269,9 +269,9 @@ export function createMapPlaybackRenderer(map) {
         type: 'circle',
         source: 'actor',
         paint: {
-          'circle-radius': 8.5,
+          'circle-radius': 5.5,
           'circle-color': palette.core,
-          'circle-stroke-width': 2.75,
+          'circle-stroke-width': 1.5,
           'circle-stroke-color': palette.coreStroke,
         },
       });
@@ -447,6 +447,12 @@ export function createMapPlaybackRenderer(map) {
     }
     if (map.getLayer('route-glow')) {
       map.setPaintProperty('route-glow', 'line-color', color);
+    }
+    if (map.getLayer('actor-core')) {
+      map.setPaintProperty('actor-core', 'circle-color', color);
+    }
+    if (map.getLayer('actor-glow')) {
+      map.setPaintProperty('actor-glow', 'circle-color', color);
     }
     if (style.showFullRoute === false && map.getLayer('route-full')) {
       map.setLayoutProperty('route-full', 'visibility', 'none');
