@@ -2,7 +2,6 @@
  * GPX 3D Renderer — cinematic trail film entrypoint.
  * Open GPX → build terrain once → preview → export MP4.
  */
-import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import { parseGPX, formatDistance, formatDuration, formatElevation } from './gpx.js';
@@ -12,16 +11,12 @@ import {
 } from './mapStyles.js';
 import {
   applyPersistentBasemapPresentation,
-  buildPersistentOpenFreeMapStyle,
 } from './persistentMapStyle.js';
 import {
   applyCinematicPresentation,
-  attributionControlOptions,
-  collapseMapAttribution,
   enforceBuildingsHidden,
   syncMap3dGestures,
 } from './mapLibreShared.js';
-import { createAnimator } from './animator.js';
 import { initShell } from './ui/shell.js';
 import { createStudioStore } from './project/store.js';
 import {
@@ -30,10 +25,8 @@ import {
   selectRouteDocument,
   selectTimelineConfig,
 } from './project/selectors.js';
-import { createTerrainStreamCoordinator } from './terrain/streamCoordinator.js';
 import { fingerprintRoutePoints } from './gpxFingerprint.js';
 import { normalizePrepareQuality } from './playback/preparePlans.js';
-import { createReplayTileWarmup } from './playback/tileWarmup.js';
 import {
   createPhotoRecord,
   readPhotoMetadata,
@@ -51,6 +44,7 @@ import {
   getSuggestedFollowBehindZoomLevel,
   normalizeTrailReplayCameraMode,
 } from './camera/trailReplayPlan.js';
+import { mountTrailRenderer } from './mountTrailRenderer.js';
 
 async function bootstrap() {
 const store = createStudioStore();
@@ -71,29 +65,13 @@ function getRouteDocument() {
   return selectRouteDocument(getProjectState());
 }
 
-const persistentBasemap = await buildPersistentOpenFreeMapStyle(
-  DEFAULT_MAP_STYLE_ID,
-);
-
-const map = new maplibregl.Map({
-  container: 'map',
-  style: persistentBasemap.style,
-  center: [34.01, 35.05],
-  zoom: 13,
-  pitch: 0,
-  bearing: 0,
-  antialias: true,
-  maxPitch: 85,
-  pitchWithRotate: true,
-  touchPitch: false,
-  attributionControl: attributionControlOptions(),
-});
-collapseMapAttribution(map);
-
-// Cold-start barrier: a GPX selected immediately after app launch must wait
-// until MapLibre has completed its first load and the studio/kernel/3D setup
-// is ready. Without this, the first route can race startup initialization and
-// appear to fail while an immediate second upload succeeds.
+// Shared host-agnostic mount owns MapLibre + animator + tile warmup.
+// Cold-start barrier: GPX selected immediately after launch waits until mount finishes.
+let trailRenderer = null;
+let map = null;
+let persistentBasemap = null;
+let terrainStream = null;
+let tileWarmup = null;
 let resolveMapBootReady;
 let mapBootReadySettled = false;
 const mapBootReady = new Promise((resolve) => {
@@ -103,10 +81,6 @@ const mapBootReady = new Promise((resolve) => {
     resolve();
   };
 });
-
-const terrainStream = createTerrainStreamCoordinator(map);
-const navControl = new maplibregl.NavigationControl({ visualizePitch: true });
-map.addControl(navControl, 'top-right');
 
 const gpxInput = document.getElementById('gpx-input');
 const photoInput = document.getElementById('photo-input');
@@ -511,153 +485,136 @@ const shell = initShell({
 let elevationChart = null;
 let animator = null;
 
-const tileWarmup = createReplayTileWarmup({
-  visibleMap: map,
-  persistentStyle: persistentBasemap.style,
-  presentations: persistentBasemap.presentations,
-  initialBasemapStyleId: DEFAULT_MAP_STYLE_ID,
-  getCameraMode: () => (
-    selectPlaybackConfig(getProjectState()).cameraMode || 'cinematic'
-  ),
-  getCameraStability: () => (
-    selectPlaybackConfig(getProjectState()).cameraStability ?? 0.5
-  ),
-  getFollowBehindZoomLevel: () => (
-    selectPlaybackConfig(getProjectState()).followBehindZoomLevel ?? 33
-  ),
-  getPlaybackSpeed: () => (
-    selectPlaybackConfig(getProjectState()).speed ?? 1
-  ),
-  getDurationSec: () => animator?.getDuration?.() || 30,
-});
-
-animator = createAnimator(map, {
-  setPlaying(on) {
-    store.dispatch({ type: 'runtime/set-playback', payload: { playing: on } });
-    iconPlay.classList.toggle('hidden', on);
-    iconPause.classList.toggle('hidden', !on);
-    // Keep map chrome hidden whenever a film is loaded.
-    if (getRouteDocument()) setNavVisible(false);
-  },
-  onRouteLoaded(name) {
-    const routeDoc = getRouteDocument();
-    shell.hideEmptyState();
-    setNavVisible(false);
-    shell.setStatus(`Creating film for ${routeDoc?.name || name}…`);
-    shell.showPreparing('Preparing your film', 'Loading map detail and terrain…');
-    setPlaybackControlsEnabled(false);
-    renderProjectState();
-    shell.setTimes(0, animator.getDuration?.() || 0);
-    elevationChart?.setData(animator.getElevationProfile?.() || []);
-    filmTelemetry?.classList.remove('hidden');
-    elevationProfileWrap?.classList.remove('hidden');
-  },
-  onPlaybackDisarmed() {
-    if (getRouteDocument() && animator.isPreparingPlayback?.()) {
-      shell.setStatus('Creating your film…');
-      shell.showPreparing('Creating your film', 'Preparing the scene…');
+trailRenderer = await mountTrailRenderer({
+  container: document.getElementById('map'),
+  showNavigationControl: true,
+  enableTileWarmup: true,
+  createAnimatorUi: () => ({
+    setPlaying(on) {
+      store.dispatch({ type: 'runtime/set-playback', payload: { playing: on } });
+      iconPlay.classList.toggle('hidden', on);
+      iconPause.classList.toggle('hidden', !on);
+      // Keep map chrome hidden whenever a film is loaded.
+      if (getRouteDocument()) setNavVisible(false);
+    },
+    onRouteLoaded(name) {
+      const routeDoc = getRouteDocument();
+      shell.hideEmptyState();
+      setNavVisible(false);
+      shell.setStatus(`Creating film for ${routeDoc?.name || name}…`);
+      shell.showPreparing('Preparing your film', 'Loading map detail and terrain…');
       setPlaybackControlsEnabled(false);
-    }
-    renderProjectState();
-  },
-  onPreparePhase(phase, detail = {}) {
-    const labels = {
-      layers: 'Drawing the trail…',
-      camera: 'Framing the camera…',
-      terrain_mode: 'Sculpting the landscape…',
-      tiles_initial: 'Loading the world…',
-      corridor_prefetch: 'Warming nearby map detail…',
-      opening_warmup: 'Warming the opening views…',
-      full_route_prefetch: 'Warming the full route…',
-      corridor: 'Warming nearby map detail…',
-      settle: 'Finishing the scene…',
-      armed: 'Ready',
-      failed: 'Could not build the scene',
-    };
-    const msg = labels[phase] || detail?.message || 'Creating your film…';
-    shell.setStatus(msg);
-    shell.updatePreparing(detail?.message || msg);
-  },
-  onPlaybackArmed(_reason, degraded) {
-    shell.hidePreparing();
-    shell.setStatus(degraded ? 'Preview ready — press Play' : 'Preview ready — press Play');
-    setPlaybackControlsEnabled(true);
-    setNavVisible(false);
-    requestAnimationFrame(() => scheduleCinematicMapLook());
-    renderProjectState();
-    const dur = animator.getDuration?.() || 0;
-    const state = animator.getPlaybackState?.();
-    shell.setTimes(state?.animTime || 0, dur);
-  },
-  onPrepareFailed(error, { recovered } = {}) {
-    if (recovered) {
+      renderProjectState();
+      shell.setTimes(0, animator.getDuration?.() || 0);
+      elevationChart?.setData(animator.getElevationProfile?.() || []);
+      filmTelemetry?.classList.remove('hidden');
+      elevationProfileWrap?.classList.remove('hidden');
+    },
+    onPlaybackDisarmed() {
+      if (getRouteDocument() && animator.isPreparingPlayback?.()) {
+        shell.setStatus('Creating your film…');
+        shell.showPreparing('Creating your film', 'Preparing the scene…');
+        setPlaybackControlsEnabled(false);
+      }
+      renderProjectState();
+    },
+    onPreparePhase(phase, detail = {}) {
+      const labels = {
+        layers: 'Drawing the trail…',
+        camera: 'Framing the camera…',
+        terrain_mode: 'Sculpting the landscape…',
+        tiles_initial: 'Loading the world…',
+        corridor_prefetch: 'Warming nearby map detail…',
+        opening_warmup: 'Warming the opening views…',
+        full_route_prefetch: 'Warming the full route…',
+        corridor: 'Warming nearby map detail…',
+        settle: 'Finishing the scene…',
+        armed: 'Ready',
+        failed: 'Could not build the scene',
+      };
+      const msg = labels[phase] || detail?.message || 'Creating your film…';
+      shell.setStatus(msg);
+      shell.updatePreparing(detail?.message || msg);
+    },
+    onPlaybackArmed(_reason, degraded) {
       shell.hidePreparing();
-      shell.setStatus('Preview ready — press Play');
+      shell.setStatus(degraded ? 'Preview ready — press Play' : 'Preview ready — press Play');
       setPlaybackControlsEnabled(true);
+      setNavVisible(false);
+      requestAnimationFrame(() => scheduleCinematicMapLook());
+      renderProjectState();
+      const dur = animator.getDuration?.() || 0;
+      const state = animator.getPlaybackState?.();
+      shell.setTimes(state?.animTime || 0, dur);
+    },
+    onPrepareFailed(error, { recovered } = {}) {
+      if (recovered) {
+        shell.hidePreparing();
+        shell.setStatus('Preview ready — press Play');
+        setPlaybackControlsEnabled(true);
+        scheduleCinematicMapLook();
+      } else {
+        shell.updatePreparing(`Failed: ${error}`);
+        shell.setStatus(`Failed: ${error}`);
+        setPlaybackControlsEnabled(false);
+      }
+      renderProjectState();
+    },
+    onPrepareSettled() {
+      shell.hidePreparing();
+      updateExportEnabled();
       scheduleCinematicMapLook();
-    } else {
-      shell.updatePreparing(`Failed: ${error}`);
-      shell.setStatus(`Failed: ${error}`);
+    },
+    onRouteCleared() {
+      shell.hidePreparing();
+      elevationChart?.setData([]);
+      filmTelemetry?.classList.add('hidden');
+      elevationProfileWrap?.classList.add('hidden');
       setPlaybackControlsEnabled(false);
-    }
-    renderProjectState();
-  },
-  onPrepareSettled() {
-    shell.hidePreparing();
-    updateExportEnabled();
-    scheduleCinematicMapLook();
-  },
-  onRouteCleared() {
-    shell.hidePreparing();
-    elevationChart?.setData([]);
-    filmTelemetry?.classList.add('hidden');
-    elevationProfileWrap?.classList.add('hidden');
-    setPlaybackControlsEnabled(false);
-    updateExportEnabled();
-    cinematicStyleApplied = false;
-    setNavVisible(true);
-    renderProjectState();
-  },
-  onRouteLoadFailed(err) {
-    shell.setStatus(`Load failed: ${err?.message || err}`);
-    animator.clear();
-    store.dispatch({ type: 'project/reset' });
-    gpxInput.value = '';
-    lastLoadedRouteFingerprint = null;
-    clearProjectUI();
-  },
-  onShotChanged() {
-    renderProjectState();
-  },
-  update(hud) {
-    // Animator is the single source of truth for clock + timeline.
-    if (!userScrubbing && Number.isFinite(hud.timeline)) {
-      timeline.value = String(Math.round(hud.timeline));
-    }
-    const current = Number.isFinite(hud.currentTimeSec) ? hud.currentTimeSec : 0;
-    const total = Number.isFinite(hud.durationSec)
-      ? hud.durationSec
-      : (animator.getDuration?.() || 0);
-    shell.setTimes(current, total);
-    const progress = Number.isFinite(hud.progress) ? hud.progress / 100 : 0;
-    elevationChart?.setProgress(progress);
-    photoController?.onPlaybackProgress?.(progress, Boolean(hud.playing));
+      updateExportEnabled();
+      cinematicStyleApplied = false;
+      setNavVisible(true);
+      renderProjectState();
+    },
+    onRouteLoadFailed(err) {
+      shell.setStatus(`Load failed: ${err?.message || err}`);
+      animator.clear();
+      store.dispatch({ type: 'project/reset' });
+      gpxInput.value = '';
+      lastLoadedRouteFingerprint = null;
+      clearProjectUI();
+    },
+    onShotChanged() {
+      renderProjectState();
+    },
+    update(hud) {
+      // Animator is the single source of truth for clock + timeline.
+      if (!userScrubbing && Number.isFinite(hud.timeline)) {
+        timeline.value = String(Math.round(hud.timeline));
+      }
+      const current = Number.isFinite(hud.currentTimeSec) ? hud.currentTimeSec : 0;
+      const total = Number.isFinite(hud.durationSec)
+        ? hud.durationSec
+        : (animator.getDuration?.() || 0);
+      shell.setTimes(current, total);
+      const progress = Number.isFinite(hud.progress) ? hud.progress / 100 : 0;
+      elevationChart?.setProgress(progress);
+      photoController?.onPlaybackProgress?.(progress, Boolean(hud.playing));
 
-    setLiveStat('distance', hud.distance);
-    setLiveStat('gain', hud.elevationGain);
-    setLiveStat('elevation', hud.elevation);
-    setLiveStat('time', hud.recordedTime || '00:00');
-    setLiveStat('speed', hud.recordedSpeed || '—');
-    setLiveStat('pace', hud.pace || '—');
+      setLiveStat('distance', hud.distance);
+      setLiveStat('gain', hud.elevationGain);
+      setLiveStat('elevation', hud.elevation);
+      setLiveStat('time', hud.recordedTime || '00:00');
+      setLiveStat('speed', hud.recordedSpeed || '—');
+      setLiveStat('pace', hud.pace || '—');
 
-    const routeDoc = getRouteDocument();
-    if (routeDoc && Number.isFinite(total)) {
-      const metaDur = document.getElementById('meta-duration');
-      if (metaDur) metaDur.textContent = formatDuration(total);
-    }
-  },
-}, {
-  terrainStream,
+      const routeDoc = getRouteDocument();
+      if (routeDoc && Number.isFinite(total)) {
+        const metaDur = document.getElementById('meta-duration');
+        if (metaDur) metaDur.textContent = formatDuration(total);
+      }
+    },
+  }),
   getPrepareQuality: () => normalizePrepareQuality(selectPlaybackConfig(getProjectState()).prepareQuality),
   getCameraDocument: () => {
     const state = getProjectState();
@@ -676,8 +633,13 @@ animator = createAnimator(map, {
   getCameraStability: () => (
     selectPlaybackConfig(getProjectState()).cameraStability ?? 0.3
   ),
-  tileWarmup,
 });
+
+map = trailRenderer.map;
+animator = trailRenderer.getAnimator();
+persistentBasemap = trailRenderer.getPersistentBasemap();
+terrainStream = trailRenderer.getTerrainStream();
+tileWarmup = trailRenderer.getTileWarmup();
 
 photoController = createPhotoController({
   map,
@@ -1000,6 +962,13 @@ function initKernel() {
     terrainStream,
     getDuration: () => animator.getDuration?.() || 0,
     renderProjectState,
+    exportVideo: (options) => {
+      // Keep mount livePhotos/stats in sync with the studio project before render.
+      trailRenderer.setPhotos(getProjectPhotos());
+      trailRenderer.setVisibleStats(getAvailableVisibleStats());
+      return trailRenderer.exportVideo(options);
+    },
+    abortExport: () => trailRenderer.abortExport(),
   });
 }
 
@@ -1221,7 +1190,7 @@ mapStyleSelect?.addEventListener('change', () => {
     nextStyle.id,
   );
   enforceBuildingsHidden(map);
-  tileWarmup.setBasemapStyle(nextStyle.id);
+  tileWarmup?.setBasemapStyle?.(nextStyle.id);
 
   // Reassert film presentation and 3D ordering against the now-visible
   // basemap group. No setStyle(), no route rebuild, no terrain teardown.
@@ -1359,27 +1328,26 @@ bindDropTarget(dropzone);
 
 store.subscribe(() => renderProjectState());
 
-map.on('load', () => {
-  initKernel();
-  enableCinematic3d();
-  shell.hideLoading();
-  photoController?.syncMarkers?.();
+// mountTrailRenderer already waited for MapLibre load.
+initKernel();
+enableCinematic3d();
+shell.hideLoading();
+photoController?.syncMarkers?.();
+map.resize();
+
+// Do not wipe a route that may have been queued during cold start.
+if (getRouteDocument()) {
+  renderProjectState();
+} else {
+  shell.setStatus('Drop a GPX to create a cinematic trail film');
+  clearProjectUI();
+}
+
+// Resolve on the next frame so MapLibre has applied the initial resize and
+// presentation before the queued GPX enters animator.load().
+requestAnimationFrame(() => {
   map.resize();
-
-  // Do not wipe a route that may have been queued during cold start.
-  if (getRouteDocument()) {
-    renderProjectState();
-  } else {
-    shell.setStatus('Drop a GPX to create a cinematic trail film');
-    clearProjectUI();
-  }
-
-  // Resolve on the next frame so MapLibre has applied the initial resize and
-  // presentation before the queued GPX enters animator.load().
-  requestAnimationFrame(() => {
-    map.resize();
-    resolveMapBootReady?.();
-  });
+  resolveMapBootReady?.();
 });
 
 map.once('idle', () => {
@@ -1404,7 +1372,7 @@ window.addEventListener('gpx-export-state', (event) => {
 });
 
 window.addEventListener('beforeunload', () => {
-  tileWarmup.destroy();
+  trailRenderer?.dispose?.();
   photoController?.destroy?.();
   getProjectPhotos().forEach((photo) => {
     if (photo.url?.startsWith?.('blob:')) URL.revokeObjectURL(photo.url);
@@ -1422,6 +1390,7 @@ if (urlParams.has('gpxDebug')) {
     dispatch: (action) => store.dispatch(action),
     get animator() { return animator; },
     get kernel() { return kernel; },
+    get trailRenderer() { return trailRenderer; },
     map,
   };
 }

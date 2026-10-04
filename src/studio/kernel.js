@@ -20,6 +20,8 @@ export function createStudioKernel(deps) {
     terrainStream,
     getDuration,
     renderProjectState,
+    exportVideo,
+    abortExport,
   } = deps;
 
   const registry = createModuleRegistry();
@@ -31,6 +33,8 @@ export function createStudioKernel(deps) {
     terrainStream,
     getDuration,
     renderProjectState,
+    exportVideo,
+    abortExport,
     dispatch: (action) => store.dispatch(action),
     getState: () => store.getState(),
   };

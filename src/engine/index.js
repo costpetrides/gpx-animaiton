@@ -1,11 +1,10 @@
 /**
- * Rendering engine facade — desktop UI and future Peak Explorer API share this surface.
+ * Rendering engine facade — desktop UI and Peak Explorer / Ryodo share this surface.
  *
- * Pipeline:
- *   GPX Input → Route Analysis → Terrain → 3D Scene → Camera Director
- *   → Animation Timeline → Frame Rendering → MP4 Export
+ * Prefer the package root (`gpx-cinematic-renderer`) or `mountTrailRenderer`
+ * for hosts. This subpath re-exports lower-level engine primitives.
  *
- * The desktop app is only a test harness. Do not put UI concerns here.
+ * The desktop app is only a test harness. Do not put UI or cloud concerns here.
  */
 
 export { parseGPX } from '../gpx.js';
@@ -27,4 +26,18 @@ export { createAnimator } from '../animator.js';
 export { createCameraDirector } from '../camera/cinematic/index.js';
 export { createDefaultCameraRig } from '../camera/rig.js';
 
-export { createVideoExporter, EXPORT_QUALITY_PRESETS } from '../export/videoExporter.js';
+export {
+  createVideoExporter,
+  downloadBlob,
+  getExportResolution,
+  normalizeExportAspectRatio,
+  normalizeExportFps,
+  normalizeExportQuality,
+  EXPORT_QUALITY_PRESETS,
+} from '../export/videoExporter.js';
+
+export {
+  mountTrailRenderer,
+  createDefaultAnimationConfig,
+  normalizeAnimationConfig,
+} from '../mountTrailRenderer.js';
