@@ -32,6 +32,7 @@ export {
   normalizeExportAspectRatio,
   normalizeExportFps,
   normalizeExportQuality,
+  EXPORT_QUALITY_OPTIONS,
   EXPORT_QUALITY_PRESETS,
 } from './export/videoExporter.js';
 

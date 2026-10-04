@@ -21,6 +21,8 @@ export const EXPORT_QUALITY_OPTIONS = {
 };
 
 export const EXPORT_ASPECT_RATIOS = ['16:9', '1:1', '9:16'];
+/** @deprecated use EXPORT_QUALITY_OPTIONS */
+export const EXPORT_QUALITY_PRESETS = EXPORT_QUALITY_OPTIONS;
 export const EXPORT_FRAME_RATES = [24, 30, 60];
 
 export function normalizeExportQuality(value) {
